@@ -36,6 +36,7 @@ Shader "Hidden/DeferredAO"
     sampler2D _MainTex;
     float2 _MainTex_TexelSize;
 
+    sampler2D _CameraDepthNormalsTexture;
 	sampler2D_float _CameraDepthTexture;
     sampler2D _CameraGBufferTexture2;
     float4x4 _WorldToCamera;
@@ -77,7 +78,7 @@ Shader "Hidden/DeferredAO"
     {
         half4 src = tex2D(_MainTex, i.uv);
 
-        // Sample a linear depth on the depth buffer.
+#if 0
         float depth_o = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, i.uv);
         depth_o = LinearEyeDepth(depth_o);
 
@@ -87,6 +88,13 @@ Shader "Hidden/DeferredAO"
         // Sample a view-space normal vector on the g-buffer.
         float3 norm_o = tex2D(_CameraGBufferTexture2, i.uv).xyz * 2 - 1;
         norm_o = mul((float3x3)_WorldToCamera, norm_o);
+#else
+        float depth_o;
+        float3 norm_o;
+        DecodeDepthNormal(tex2D(_CameraDepthNormalsTexture, i.uv), depth_o, norm_o);
+        depth_o *= _ProjectionParams.z;
+        norm_o.z *= -1;
+#endif
 
         // Reconstruct the view-space position.
         float2 p11_22 = float2(unity_CameraProjection._11, unity_CameraProjection._22);
@@ -111,7 +119,14 @@ Shader "Hidden/DeferredAO"
             float2 uv_s = (pos_sc.xy / pos_s.z + 1) * 0.5;
 
             // Sample a linear depth at the sampling point.
+#if 0
             float depth_s = LinearEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv_s));
+#else
+            float depth_s;
+            float3 norm_s;
+            DecodeDepthNormal(tex2D(_CameraDepthNormalsTexture, uv_s), depth_s, norm_s);
+            depth_s *= _ProjectionParams.z;
+#endif
 
             // Occlusion test.
             float dist = pos_s.z - depth_s;

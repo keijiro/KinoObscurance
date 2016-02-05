@@ -100,6 +100,11 @@ public class DeferredAO : MonoBehaviour
 
     #region MonoBehaviour Functions
 
+    void Start()
+    {
+        GetComponent<Camera>().depthTextureMode = DepthTextureMode.DepthNormals;
+    }
+
     [ImageEffectOpaque]
     void OnRenderImage(RenderTexture source, RenderTexture destination)
     {
