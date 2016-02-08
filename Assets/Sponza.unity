@@ -1459,8 +1459,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2f6a516d891854931acf7fb785c812ec, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _intensity: 1.20000005
-  _sampleRadius: 2.20000005
+  _intensity: 1
+  _sampleRadius: 3
   _rangeCheck: 1
   _fallOffDistance: 100
   _sampleCount: 2

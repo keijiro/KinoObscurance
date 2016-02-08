@@ -78,23 +78,15 @@ Shader "Hidden/DeferredAO"
     {
         half4 src = tex2D(_MainTex, i.uv);
 
-#if 0
-        float depth_o = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, i.uv);
-        depth_o = LinearEyeDepth(depth_o);
-
-        // This early-out flow control is not allowed in HLSL.
-        // if (depth_o > _FallOff) return src;
-
-        // Sample a view-space normal vector on the g-buffer.
-        float3 norm_o = tex2D(_CameraGBufferTexture2, i.uv).xyz * 2 - 1;
-        norm_o = mul((float3x3)_WorldToCamera, norm_o);
-#else
+        // Sample a view-space normal vector.
         float depth_o;
         float3 norm_o;
         DecodeDepthNormal(tex2D(_CameraDepthNormalsTexture, i.uv), depth_o, norm_o);
         depth_o *= _ProjectionParams.z;
         norm_o.z *= -1;
-#endif
+
+        // This early-out flow control is not allowed in HLSL.
+        // if (depth_o > _FallOff) return src;
 
         // Reconstruct the view-space position.
         float2 p11_22 = float2(unity_CameraProjection._11, unity_CameraProjection._22);
@@ -119,26 +111,23 @@ Shader "Hidden/DeferredAO"
             float2 uv_s = (pos_sc.xy / pos_s.z + 1) * 0.5;
 
             // Sample a linear depth at the sampling point.
-#if 0
-            float depth_s = LinearEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv_s));
-#else
             float depth_s;
             float3 norm_s;
             DecodeDepthNormal(tex2D(_CameraDepthNormalsTexture, uv_s), depth_s, norm_s);
             depth_s *= _ProjectionParams.z;
-#endif
 
             // Occlusion test.
             float dist = pos_s.z - depth_s;
+            float cosine = dot(norm_o, normalize(delta));
             #if _RANGE_CHECK
-            occ += (dist > 0.01 * _Radius) * (dist < _Radius);
+            occ += (dist > 0.01 * _Radius) * (dist < _Radius) * cosine;
             #else
-            occ += (dist > 0.01 * _Radius);
+            occ += (dist > 0.01 * _Radius) * cosine;
             #endif
         }
 
         float falloff = 1.0 - depth_o / _FallOff;
-        occ = saturate(occ * _Intensity * falloff / SAMPLE_COUNT);
+        occ = saturate(occ * _Intensity * falloff * UNITY_PI * 2 / SAMPLE_COUNT);
 
         return half4(lerp(src.rgb, (half3)0.0, occ), src.a);
     }
