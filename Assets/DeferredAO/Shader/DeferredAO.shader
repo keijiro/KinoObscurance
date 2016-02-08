@@ -71,7 +71,7 @@ Shader "Hidden/DeferredAO"
         float3 v = float3(u2 * cos(theta), u2 * sin(theta), u);
         // Adjustment for distance distribution.
         float l = index / SAMPLE_COUNT;
-        return v * lerp(0.1, 1.0, l * l);
+        return v * lerp(0.1, 1.0, l);
     }
 
     half4 frag_ao(v2f_img i) : SV_Target 
@@ -116,18 +116,13 @@ Shader "Hidden/DeferredAO"
             DecodeDepthNormal(tex2D(_CameraDepthNormalsTexture, uv_s), depth_s, norm_s);
             depth_s *= _ProjectionParams.z;
 
-            // Occlusion test.
-            float dist = pos_s.z - depth_s;
-            float cosine = dot(norm_o, normalize(delta));
-            #if _RANGE_CHECK
-            occ += (dist > 0.01 * _Radius) * (dist < _Radius) * cosine;
-            #else
-            occ += (dist > 0.01 * _Radius) * cosine;
-            #endif
+            float3 pos_s2 = float3((uv_s * 2 - 1 - p13_31) / p11_22, 1) * depth_s;
+            float3 v = pos_s2 - pos_o;
+            occ += max(dot(v, norm_o) - 0.1, 0) / (dot(v, v) + 0.01);
         }
 
         float falloff = 1.0 - depth_o / _FallOff;
-        occ = saturate(occ * _Intensity * falloff * UNITY_PI * 2 / SAMPLE_COUNT);
+        occ = occ * _Intensity * falloff / SAMPLE_COUNT;
 
         return half4(lerp(src.rgb, (half3)0.0, occ), src.a);
     }
