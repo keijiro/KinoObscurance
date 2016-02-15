@@ -38,41 +38,66 @@ namespace Kino
             set { _intensity = value; }
         }
 
-        [SerializeField] float _intensity = 1;
+        [SerializeField, Range(0, 2)]
+        float _intensity = 1;
 
-        /// Sample radius
-        public float sampleRadius {
-            get { return _sampleRadius; }
-            set { _sampleRadius = value; }
+        /// Sampling radius
+        public float radius {
+            get { return _radius; }
+            set { _radius = value; }
         }
 
-        [SerializeField] float _sampleRadius = 1;
+        [SerializeField]
+        float _radius = 0.5f;
 
-        /// Fall-off distance
-        public float fallOffDistance {
-            get { return _fallOffDistance; }
-            set { _fallOffDistance = value; }
+        /// Sampling method
+        public SamplingMethod samplingMethod {
+            get { return _samplingMethod; }
+            set { _samplingMethod = value; }
         }
 
-        [SerializeField] float _fallOffDistance = 100;
+        public enum SamplingMethod { Disc, Sphere }
 
-        /// Sampling quality
-        public SampleQuality sampleQuality {
-            get { return _sampleQuality; }
-            set { _sampleQuality = value; }
-        }
+        [SerializeField]
+        SamplingMethod _samplingMethod = SamplingMethod.Sphere;
 
-        public enum SampleQuality { Low, Medium, High, Variable }
-
-        [SerializeField] SampleQuality _sampleQuality = SampleQuality.Medium;
-
-        /// Variable sample count
-        public int sampleCount {
+        /// Sample count option
+        public SampleCount sampleCount {
             get { return _sampleCount; }
             set { _sampleCount = value; }
         }
 
-        [SerializeField] int _sampleCount = 30;
+        public enum SampleCount { Low, Medium, Variable }
+
+        [SerializeField]
+        SampleCount _sampleCount = SampleCount.Medium;
+
+        /// Variable sample count value
+        public int sampleCountValue {
+            get { return _sampleCountValue; }
+            set { _sampleCountValue = value; }
+        }
+
+        [SerializeField]
+        int _sampleCountValue = 24;
+
+        /// Noise filter
+        public float NoiseFilter {
+            get { return _noiseFilter; }
+            set { _noiseFilter = value; }
+        }
+
+        [SerializeField, Range(0, 1)]
+        float _noiseFilter = 0;
+
+        /// Downsampling
+        public bool downsample {
+            get { return _downsample; }
+            set { _downsample = value; }
+        }
+
+        [SerializeField]
+        bool _downsample = false;
 
         #endregion
 
@@ -99,20 +124,22 @@ namespace Kino
                 _material.hideFlags = HideFlags.DontSave;
             }
 
-            _material.SetFloat("_Radius", _sampleRadius);
+            _material.SetFloat("_Radius", _radius);
             _material.SetFloat("_Intensity", _intensity);
-            _material.SetFloat("_FallOff", _fallOffDistance);
 
             _material.shaderKeywords = null;
 
-            if (_sampleQuality == SampleQuality.Low)
-                _material.EnableKeyword("_SAMPLE_LOW");
-            else if (_sampleQuality == SampleQuality.Medium)
-                _material.EnableKeyword("_SAMPLE_MEDIUM");
-            else if (_sampleQuality == SampleQuality.High)
-                _material.EnableKeyword("_SAMPLE_HIGH");
+            if (_samplingMethod == SamplingMethod.Disc)
+                _material.EnableKeyword("_METHOD_DISC");
             else
-                _material.SetInt("_SampleCount", _sampleCount);
+                _material.EnableKeyword("_METHOD_SPHERE");
+
+            if (_sampleCount == SampleCount.Low)
+                _material.EnableKeyword("_COUNT_LOW");
+            else if (_sampleCount == SampleCount.Medium)
+                _material.EnableKeyword("_COUNT_MEDIUM");
+            else
+                _material.SetInt("_SampleCount", _sampleCountValue);
 
             Graphics.Blit(source, destination, _material, 0);
         }

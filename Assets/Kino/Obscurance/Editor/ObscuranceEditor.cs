@@ -31,18 +31,24 @@ namespace Kino
     public class ObscuranceEditor : Editor
     {
         SerializedProperty _intensity;
-        SerializedProperty _sampleRadius;
-        SerializedProperty _fallOffDistance;
-        SerializedProperty _sampleQuality;
+        SerializedProperty _radius;
+        SerializedProperty _samplingMethod;
         SerializedProperty _sampleCount;
+        SerializedProperty _sampleCountValue;
+        SerializedProperty _noiseFilter;
+        SerializedProperty _downsample;
+
+        static GUIContent _textValue = new GUIContent("Value");
 
         void OnEnable()
         {
             _intensity = serializedObject.FindProperty("_intensity");
-            _sampleRadius = serializedObject.FindProperty("_sampleRadius");
-            _fallOffDistance = serializedObject.FindProperty("_fallOffDistance");
-            _sampleQuality = serializedObject.FindProperty("_sampleQuality");
+            _radius = serializedObject.FindProperty("_radius");
+            _samplingMethod = serializedObject.FindProperty("_samplingMethod");
             _sampleCount = serializedObject.FindProperty("_sampleCount");
+            _sampleCountValue = serializedObject.FindProperty("_sampleCountValue");
+            _noiseFilter = serializedObject.FindProperty("_noiseFilter");
+            _downsample = serializedObject.FindProperty("_downsample");
         }
 
         public override void OnInspectorGUI()
@@ -50,13 +56,21 @@ namespace Kino
             serializedObject.Update();
 
             EditorGUILayout.PropertyField(_intensity);
-            EditorGUILayout.PropertyField(_sampleRadius);
-            EditorGUILayout.PropertyField(_fallOffDistance);
-            EditorGUILayout.PropertyField(_sampleQuality);
+            EditorGUILayout.PropertyField(_radius);
 
-            if (_sampleQuality.hasMultipleDifferentValues ||
-                _sampleQuality.enumValueIndex == (int)Obscurance.SampleQuality.Variable)
-                EditorGUILayout.PropertyField(_sampleCount);
+            EditorGUILayout.PropertyField(_samplingMethod);
+            EditorGUILayout.PropertyField(_sampleCount);
+
+            if (_sampleCount.hasMultipleDifferentValues ||
+                _sampleCount.enumValueIndex == (int)Obscurance.SampleCount.Variable)
+            {
+                EditorGUI.indentLevel++;
+                EditorGUILayout.PropertyField(_sampleCountValue, _textValue);
+                EditorGUI.indentLevel--;
+            }
+
+            EditorGUILayout.PropertyField(_noiseFilter);
+            EditorGUILayout.PropertyField(_downsample);
 
             serializedObject.ApplyModifiedProperties();
         }

@@ -31,7 +31,8 @@ Shader "Hidden/Kino/Obscurance"
 
     #include "UnityCG.cginc"
 
-    #pragma multi_compile _ _SAMPLE_LOW _SAMPLE_MEDIUM _SAMPLE_HIGH
+    #pragma multi_compile _ _COUNT_LOW _COUNT_MEDIUM
+    #pragma multi_compile _METHOD_DISC _METHOD_SPHERE
 
     sampler2D _MainTex;
     float2 _MainTex_TexelSize;
@@ -40,14 +41,13 @@ Shader "Hidden/Kino/Obscurance"
 
     float _Intensity;
     float _Radius;
-    float _FallOff;
 
-    #if _SAMPLE_LOW
+    static const float FALLOFF_DIST = 100;
+
+    #if _COUNT_LOW
     static const int _SampleCount = 8;
-    #elif _SAMPLE_MEDIUM
+    #elif _COUNT_MEDIUM
     static const int _SampleCount = 16;
-    #elif _SAMPLE_HIGH
-    static const int _SampleCount = 24;
     #else
     int _SampleCount;
     #endif
@@ -113,7 +113,7 @@ Shader "Hidden/Kino/Obscurance"
         float depth_o = SampleDepthNormal(i.uv, norm_o);
 
         // Early-out case
-        if (depth_o > _FallOff) return src;
+        if (depth_o > FALLOFF_DIST) return src;
 
         // Reconstruct the view-space position
         float3 pos_o = ReconstructWorldPos(i.uv, depth_o, p11_22, p13_31);
@@ -121,7 +121,7 @@ Shader "Hidden/Kino/Obscurance"
         float ao = 0.0;
         for (int s = 0; s < _SampleCount; s++)
         {
-#if 1
+#if _METHOD_SPHERE
             float3 v1 = random_vector(i.uv, s);
             v1 = faceforward(v1, -norm_o, v1);
 
@@ -143,7 +143,7 @@ Shader "Hidden/Kino/Obscurance"
             ao += max(dot(v, norm_o) - 0.1, 0) / (dot(v, v) + 0.01);
         }
 
-        float falloff = 1.0 - depth_o / _FallOff;
+        float falloff = 1.0 - depth_o / FALLOFF_DIST;
         ao = pow(ao / _SampleCount, 0.8) * _Intensity * falloff;
 
         return half4(lerp(src.rgb, (half3)0.0, ao), src.a);
