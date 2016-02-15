@@ -1415,7 +1415,7 @@ Transform:
   m_PrefabParentObject: {fileID: 400316, guid: b235179bd2a63d1468dd430670338c55, type: 3}
   m_PrefabInternal: {fileID: 0}
   m_GameObject: {fileID: 545040465}
-  m_LocalRotation: {x: .532675147, y: .0703404471, z: .836132646, w: -.110415131}
+  m_LocalRotation: {x: .532675207, y: .0703404546, z: .836132765, w: -.110415146}
   m_LocalPosition: {x: 2.22714643e-05, y: -6.1504652e-05, z: .0260270257}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_Children:
@@ -2031,15 +2031,15 @@ MonoBehaviour:
   m_GameObject: {fileID: 702323866}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2f6a516d891854931acf7fb785c812ec, type: 3}
+  m_Script: {fileID: 11500000, guid: d901ddf32d7c84ed4b0f84623ef3a7a0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   _intensity: 1
   _sampleRadius: 1
   _rangeCheck: 1
   _fallOffDistance: 100
-  _sampleCount: 2
-  _shader: {fileID: 4800000, guid: c928e16c12e994a70928a9181450d18c, type: 3}
+  _sampleCount: 1
+  _shader: {fileID: 4800000, guid: 7541b5f18b1224a81927d8b1184b122b, type: 3}
 --- !u!1 &768931011
 GameObject:
   m_ObjectHideFlags: 0
