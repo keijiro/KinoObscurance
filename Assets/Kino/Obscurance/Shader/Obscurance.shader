@@ -31,8 +31,7 @@ Shader "Hidden/Kino/Obscurance"
 
     #include "UnityCG.cginc"
 
-    #pragma multi_compile _ _RANGE_CHECK
-    #pragma multi_compile _SAMPLE_LOW _SAMPLE_MEDIUM _SAMPLE_HIGH _SAMPLE_OVERKILL
+    #pragma multi_compile _ _SAMPLE_LOW _SAMPLE_MEDIUM _SAMPLE_HIGH
 
     sampler2D _MainTex;
     float2 _MainTex_TexelSize;
@@ -44,13 +43,13 @@ Shader "Hidden/Kino/Obscurance"
     float _FallOff;
 
     #if _SAMPLE_LOW
-    static const int SAMPLE_COUNT = 8;
+    static const int _SampleCount = 8;
     #elif _SAMPLE_MEDIUM
-    static const int SAMPLE_COUNT = 16;
+    static const int _SampleCount = 16;
     #elif _SAMPLE_HIGH
-    static const int SAMPLE_COUNT = 24;
+    static const int _SampleCount = 24;
     #else
-    static const int SAMPLE_COUNT = 80;
+    int _SampleCount;
     #endif
 
     float nrand(float2 uv, float dx, float dy)
@@ -68,7 +67,7 @@ Shader "Hidden/Kino/Obscurance"
         float u2 = sqrt(1 - u * u);
         float3 v = float3(u2 * cos(theta), u2 * sin(theta), u);
         // Adjustment for distance distribution.
-        float l = index / SAMPLE_COUNT;
+        float l = index / _SampleCount;
         return v * lerp(0.1, 1.0, pow(l, 0.333));
     }
 
@@ -95,7 +94,7 @@ Shader "Hidden/Kino/Obscurance"
     {
         float sn, cs;
         sincos(nrand(uv, s, 0) * UNITY_PI * 2, sn, cs);
-        float l = s / SAMPLE_COUNT;
+        float l = s / _SampleCount;
         return float2(sn, cs) * sqrt(l);
     }
 
@@ -120,7 +119,7 @@ Shader "Hidden/Kino/Obscurance"
         float3 pos_o = ReconstructWorldPos(i.uv, depth_o, p11_22, p13_31);
 
         float ao = 0.0;
-        for (int s = 0; s < SAMPLE_COUNT; s++)
+        for (int s = 0; s < _SampleCount; s++)
         {
 #if 1
             float3 v1 = random_vector(i.uv, s);
@@ -145,7 +144,7 @@ Shader "Hidden/Kino/Obscurance"
         }
 
         float falloff = 1.0 - depth_o / _FallOff;
-        ao = pow(ao / SAMPLE_COUNT, 0.8) * _Intensity * falloff;
+        ao = pow(ao / _SampleCount, 0.8) * _Intensity * falloff;
 
         return half4(lerp(src.rgb, (half3)0.0, ao), src.a);
     }

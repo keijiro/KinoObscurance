@@ -32,65 +32,53 @@ namespace Kino
     {
         #region Public Properties
 
-        // Effect intensity
-
-        [SerializeField]
-        float _intensity = 1;
-
+        /// Effect intensity
         public float intensity {
             get { return _intensity; }
             set { _intensity = value; }
         }
 
-        // Sample radius
+        [SerializeField] float _intensity = 1;
 
-        [SerializeField]
-        float _sampleRadius = 1;
-
+        /// Sample radius
         public float sampleRadius {
             get { return _sampleRadius; }
             set { _sampleRadius = value; }
         }
 
-        // Range check (rejects distant samples)
+        [SerializeField] float _sampleRadius = 1;
 
-        [SerializeField]
-        bool _rangeCheck = true;
-
-        public bool rangeCheck {
-            get { return _rangeCheck; }
-            set { _rangeCheck = value; }
-        }
-
-        // Fall-off distance
-
-        [SerializeField]
-        float _fallOffDistance = 100;
-
+        /// Fall-off distance
         public float fallOffDistance {
             get { return _fallOffDistance; }
             set { _fallOffDistance = value; }
         }
 
-        // Sample count
+        [SerializeField] float _fallOffDistance = 100;
 
-        public enum SampleCount { Low, Medium, High, Overkill }
+        /// Sampling quality
+        public SampleQuality sampleQuality {
+            get { return _sampleQuality; }
+            set { _sampleQuality = value; }
+        }
 
-        [SerializeField]
-        SampleCount _sampleCount = SampleCount.Medium;
+        public enum SampleQuality { Low, Medium, High, Variable }
 
-        public SampleCount sampleCount {
+        [SerializeField] SampleQuality _sampleQuality = SampleQuality.Medium;
+
+        /// Variable sample count
+        public int sampleCount {
             get { return _sampleCount; }
             set { _sampleCount = value; }
         }
+
+        [SerializeField] int _sampleCount = 30;
 
         #endregion
 
         #region Private Resources
 
-        [SerializeField]
-        Shader _shader;
-
+        [SerializeField] Shader _shader;
         Material _material;
 
         #endregion
@@ -99,7 +87,8 @@ namespace Kino
 
         void Start()
         {
-            GetComponent<Camera>().depthTextureMode = DepthTextureMode.DepthNormals;
+            GetComponent<Camera>().depthTextureMode =
+                DepthTextureMode.DepthNormals;
         }
 
         [ImageEffectOpaque]
@@ -116,15 +105,14 @@ namespace Kino
 
             _material.shaderKeywords = null;
 
-            if (_rangeCheck)
-                _material.EnableKeyword("_RANGE_CHECK");
-
-            if (_sampleCount == SampleCount.Medium)
+            if (_sampleQuality == SampleQuality.Low)
+                _material.EnableKeyword("_SAMPLE_LOW");
+            else if (_sampleQuality == SampleQuality.Medium)
                 _material.EnableKeyword("_SAMPLE_MEDIUM");
-            else if (_sampleCount == SampleCount.High)
+            else if (_sampleQuality == SampleQuality.High)
                 _material.EnableKeyword("_SAMPLE_HIGH");
-            else if (_sampleCount == SampleCount.Overkill)
-                _material.EnableKeyword("_SAMPLE_OVERKILL");
+            else
+                _material.SetInt("_SampleCount", _sampleCount);
 
             Graphics.Blit(source, destination, _material, 0);
         }

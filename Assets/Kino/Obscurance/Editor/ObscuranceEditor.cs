@@ -32,16 +32,16 @@ namespace Kino
     {
         SerializedProperty _intensity;
         SerializedProperty _sampleRadius;
-        SerializedProperty _rangeCheck;
         SerializedProperty _fallOffDistance;
+        SerializedProperty _sampleQuality;
         SerializedProperty _sampleCount;
 
         void OnEnable()
         {
             _intensity = serializedObject.FindProperty("_intensity");
             _sampleRadius = serializedObject.FindProperty("_sampleRadius");
-            _rangeCheck = serializedObject.FindProperty("_rangeCheck");
             _fallOffDistance = serializedObject.FindProperty("_fallOffDistance");
+            _sampleQuality = serializedObject.FindProperty("_sampleQuality");
             _sampleCount = serializedObject.FindProperty("_sampleCount");
         }
 
@@ -51,9 +51,12 @@ namespace Kino
 
             EditorGUILayout.PropertyField(_intensity);
             EditorGUILayout.PropertyField(_sampleRadius);
-            EditorGUILayout.PropertyField(_rangeCheck);
             EditorGUILayout.PropertyField(_fallOffDistance);
-            EditorGUILayout.PropertyField(_sampleCount);
+            EditorGUILayout.PropertyField(_sampleQuality);
+
+            if (_sampleQuality.hasMultipleDifferentValues ||
+                _sampleQuality.enumValueIndex == (int)Obscurance.SampleQuality.Variable)
+                EditorGUILayout.PropertyField(_sampleCount);
 
             serializedObject.ApplyModifiedProperties();
         }
