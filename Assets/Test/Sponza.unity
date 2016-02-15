@@ -2035,6 +2035,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _intensity: 1
+  _contrast: .800000012
   _radius: .5
   _samplingMethod: 1
   _sampleCount: 1

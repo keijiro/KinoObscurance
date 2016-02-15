@@ -144,7 +144,7 @@ Shader "Hidden/Kino/Obscurance"
             float3 v = pos_s2 - pos_o;
 
             // Calculate the obscurance value.
-            ao += max(dot(v, norm_o) - 0.1, 0) / (dot(v, v) + 0.01);
+            ao += max(dot(v, norm_o) - 0.001, 0) / (dot(v, v) + 0.001);
         }
 
         // Calculate the final AO value.
