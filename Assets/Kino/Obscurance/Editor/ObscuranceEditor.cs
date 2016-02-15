@@ -31,6 +31,7 @@ namespace Kino
     public class ObscuranceEditor : Editor
     {
         SerializedProperty _intensity;
+        SerializedProperty _contrast;
         SerializedProperty _radius;
         SerializedProperty _samplingMethod;
         SerializedProperty _sampleCount;
@@ -43,6 +44,7 @@ namespace Kino
         void OnEnable()
         {
             _intensity = serializedObject.FindProperty("_intensity");
+            _contrast = serializedObject.FindProperty("_contrast");
             _radius = serializedObject.FindProperty("_radius");
             _samplingMethod = serializedObject.FindProperty("_samplingMethod");
             _sampleCount = serializedObject.FindProperty("_sampleCount");
@@ -56,6 +58,7 @@ namespace Kino
             serializedObject.Update();
 
             EditorGUILayout.PropertyField(_intensity);
+            EditorGUILayout.PropertyField(_contrast);
             EditorGUILayout.PropertyField(_radius);
 
             EditorGUILayout.PropertyField(_samplingMethod);

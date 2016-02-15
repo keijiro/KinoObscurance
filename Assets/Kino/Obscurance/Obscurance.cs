@@ -32,7 +32,7 @@ namespace Kino
     {
         #region Public Properties
 
-        /// Effect intensity
+        /// Obscurance intensity
         public float intensity {
             get { return _intensity; }
             set { _intensity = value; }
@@ -40,6 +40,15 @@ namespace Kino
 
         [SerializeField, Range(0, 2)]
         float _intensity = 1;
+
+        /// Obscurance contrast
+        public float contrast {
+            get { return _contrast; }
+            set { _contrast = value; }
+        }
+
+        [SerializeField, Range(0.01f, 2)]
+        float _contrast = 0.8f;
 
         /// Sampling radius
         public float radius {
@@ -124,8 +133,9 @@ namespace Kino
                 _material.hideFlags = HideFlags.DontSave;
             }
 
-            _material.SetFloat("_Radius", _radius);
             _material.SetFloat("_Intensity", _intensity);
+            _material.SetFloat("_Contrast", _contrast);
+            _material.SetFloat("_Radius", _radius);
 
             _material.shaderKeywords = null;
 
