@@ -151,7 +151,41 @@ namespace Kino
             else
                 _material.SetInt("_SampleCount", _sampleCountValue);
 
-            Graphics.Blit(source, destination, _material, 0);
+            if (_noiseFilter > 0 || _downsample)
+            {
+                var div = _downsample ? 2 : 1;
+
+                var temp1 = RenderTexture.GetTemporary(
+                    source.width / div, source.height / div, 0,
+                    RenderTextureFormat.R8);
+
+                var temp2 = RenderTexture.GetTemporary(
+                    source.width, source.height, 0,
+                    RenderTextureFormat.R8);
+
+                var temp3 = RenderTexture.GetTemporary(
+                    source.width, source.height, 0,
+                    RenderTextureFormat.R8);
+
+                Graphics.Blit(null, temp1, _material, 1);
+
+                _material.SetVector("_BlurVector", new Vector2(0.5f, 0));
+                Graphics.Blit(temp1, temp2, _material, 2);
+
+                _material.SetVector("_BlurVector", new Vector2(0, 1));
+                Graphics.Blit(temp2, temp3, _material, 2);
+
+                _material.SetTexture("_AOTex", temp3);
+                Graphics.Blit(source, destination, _material, 3);
+
+                RenderTexture.ReleaseTemporary(temp1);
+                RenderTexture.ReleaseTemporary(temp2);
+                RenderTexture.ReleaseTemporary(temp3);
+            }
+            else
+            {
+                Graphics.Blit(source, destination, _material, 0);
+            }
         }
 
         #endregion

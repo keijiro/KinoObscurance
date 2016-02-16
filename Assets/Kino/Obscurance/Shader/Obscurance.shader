@@ -25,7 +25,8 @@ Shader "Hidden/Kino/Obscurance"
 {
     Properties
     {
-        _MainTex("-", 2D) = "" {}
+        _MainTex("", 2D) = ""{}
+        _AOTex("", 2D) = ""{}
     }
     CGINCLUDE
 
@@ -37,16 +38,20 @@ Shader "Hidden/Kino/Obscurance"
     sampler2D _MainTex;
     float2 _MainTex_TexelSize;
 
+    sampler2D _AOTex;
+    float2 _AOTex_TexelSize;
+
     sampler2D _CameraDepthNormalsTexture;
 
-    float _Intensity;
-    float _Contrast;
+    half _Intensity;
+    half _Contrast;
     float _Radius;
+    float2 _BlurVector;
 
     static const float kFallOffDist = 100;
 
     #if _COUNT_LOW
-    static const int _SampleCount = 8;
+    static const int _SampleCount = 10;
     #elif _COUNT_MEDIUM
     static const int _SampleCount = 16;
     #else
@@ -55,7 +60,7 @@ Shader "Hidden/Kino/Obscurance"
 
     float UVRandom(float2 uv, float dx, float dy)
     {
-        uv += float2(dx, dy + _Time.x);
+        uv += float2(dx, dy + _Time.x * 0);
         return frac(sin(dot(uv, float2(12.9898, 78.233))) * 43758.5453);
     }
 
@@ -86,6 +91,14 @@ Shader "Hidden/Kino/Obscurance"
         return DecodeFloatRG(cdn.zw) * _ProjectionParams.z;
     }
 
+    float3 SampleNormal(float2 uv)
+    {
+        float4 cdn = tex2D(_CameraDepthNormalsTexture, uv);
+        float3 normal = DecodeViewNormalStereo(cdn);
+        normal.z *= -1;
+        return normal;
+    }
+
     float SampleDepthNormal(float2 uv, out float3 normal)
     {
         float4 cdn = tex2D(_CameraDepthNormalsTexture, uv);
@@ -99,11 +112,18 @@ Shader "Hidden/Kino/Obscurance"
         return float3((uv * 2 - 1 - p13_31) / p11_22, 1) * depth;
     }
 
-    half4 frag_ao(v2f_img i) : SV_Target
+    half CompareNormal(half3 d1, half3 d2)
     {
-        // Source color
-        half4 src = tex2D(_MainTex, i.uv);
+        return pow((dot(d1, d2) + 1) * 0.5, 6);
+    }
 
+    half3 CombineObscurance(half3 src, half3 ao)
+    {
+        return lerp(src, 0, ao);
+    }
+
+    float CalculateObscurance(float2 uv)
+    {
         // Parameters used for coordinate conversion
         float3x3 proj = (float3x3)unity_CameraProjection;
         float2 p11_22 = float2(unity_CameraProjection._11, unity_CameraProjection._22);
@@ -111,20 +131,20 @@ Shader "Hidden/Kino/Obscurance"
 
         // View space normal and depth
         float3 norm_o;
-        float depth_o = SampleDepthNormal(i.uv, norm_o);
+        float depth_o = SampleDepthNormal(uv, norm_o);
 
         // Early-out case
-        if (depth_o > kFallOffDist) return src;
+        if (depth_o > kFallOffDist) return 0;
 
         // Reconstruct the view-space position.
-        float3 pos_o = ReconstructWorldPos(i.uv, depth_o, p11_22, p13_31);
+        float3 pos_o = ReconstructWorldPos(uv, depth_o, p11_22, p13_31);
 
         float ao = 0.0;
         for (int s = 0; s < _SampleCount; s++)
         {
 #if _METHOD_SPHERE
             // Sampling point (sphere)
-            float3 v1 = RandomVectorSphere(i.uv, s);
+            float3 v1 = RandomVectorSphere(uv, s);
             v1 = faceforward(v1, -norm_o, v1);
             float3 pos_s = pos_o + v1 * _Radius;
 
@@ -133,8 +153,8 @@ Shader "Hidden/Kino/Obscurance"
             float2 uv_s = (pos_sc.xy / pos_s.z + 1) * 0.5;
 #else
             // Sampling point (disc)
-            float2 v1 = RandomVectorDisc(i.uv, s);
-            float2 uv_s = i.uv + v1 * _Radius / depth_o;
+            float2 v1 = RandomVectorDisc(uv, s);
+            float2 uv_s = uv + v1 * _Radius / depth_o;
 #endif
             // Sample linear depth at the sampling point.
             float depth_s = SampleDepth(uv_s);
@@ -144,15 +164,60 @@ Shader "Hidden/Kino/Obscurance"
             float3 v = pos_s2 - pos_o;
 
             // Calculate the obscurance value.
-            ao += max(dot(v, norm_o) - 0.001, 0) / (dot(v, v) + 0.001);
+            ao += max(dot(v, norm_o) - 0.01, 0) / (dot(v, v) + 0.001);
         }
 
         // Calculate the final AO value.
         float falloff = 1.0 - depth_o / kFallOffDist;
-        ao = pow(ao / _SampleCount, _Contrast) * _Intensity * falloff;
+        return pow(ao * _Intensity * falloff / _SampleCount, _Contrast);
+    }
 
-        // Apply the AO.
-        return half4(lerp(src.rgb, (half3)0.0, ao), src.a);
+    half3 SeparableBlur(float2 uv, float2 delta)
+    {
+        half3 n0 = SampleNormal(uv);
+
+        half2 uv1 = uv - delta * 2;
+        half2 uv2 = uv - delta;
+        half2 uv3 = uv + delta;
+        half2 uv4 = uv + delta * 2;
+
+        half w1 = CompareNormal(n0, SampleNormal(uv1));
+        half w2 = CompareNormal(n0, SampleNormal(uv2));
+        half w3 = CompareNormal(n0, SampleNormal(uv3));
+        half w4 = CompareNormal(n0, SampleNormal(uv4));
+
+        half3 s = tex2D(_MainTex, uv) * 3;
+        s += tex2D(_MainTex, uv1) * w1;
+        s += tex2D(_MainTex, uv2) * w2 * 2;
+        s += tex2D(_MainTex, uv3) * w3 * 2;
+        s += tex2D(_MainTex, uv4) * w4;
+
+        return s / (3 + w1 + w2 *2 + w3 *2 + w4);
+    }
+
+    half4 frag_ao_combined(v2f_img i) : SV_Target
+    {
+        half4 src = tex2D(_MainTex, i.uv);
+        half ao = CalculateObscurance(i.uv);
+        return half4(CombineObscurance(src.rgb, ao), src.a);
+    }
+
+    half4 frag_ao(v2f_img i) : SV_Target
+    {
+        return CalculateObscurance(i.uv);
+    }
+
+    half4 frag_blur(v2f_img i) : SV_Target
+    {
+        float2 delta = _MainTex_TexelSize.xy * _BlurVector;
+        return half4(SeparableBlur(i.uv, delta), 0);
+    }
+
+    half4 frag_combine(v2f_img i) : SV_Target
+    {
+        half4 src = tex2D(_MainTex, i.uv);
+        half ao = tex2D(_AOTex, i.uv);
+        return half4(CombineObscurance(src.rgb, ao), src.a);
     }
 
     ENDCG
@@ -163,7 +228,34 @@ Shader "Hidden/Kino/Obscurance"
             ZTest Always Cull Off ZWrite Off
             CGPROGRAM
             #pragma vertex vert_img
+            #pragma fragment frag_ao_combined
+            #pragma target 3.0
+            ENDCG
+        }
+        Pass
+        {
+            ZTest Always Cull Off ZWrite Off
+            CGPROGRAM
+            #pragma vertex vert_img
             #pragma fragment frag_ao
+            #pragma target 3.0
+            ENDCG
+        }
+        Pass
+        {
+            ZTest Always Cull Off ZWrite Off
+            CGPROGRAM
+            #pragma vertex vert_img
+            #pragma fragment frag_blur
+            #pragma target 3.0
+            ENDCG
+        }
+        Pass
+        {
+            ZTest Always Cull Off ZWrite Off
+            CGPROGRAM
+            #pragma vertex vert_img
+            #pragma fragment frag_combine
             #pragma target 3.0
             ENDCG
         }
