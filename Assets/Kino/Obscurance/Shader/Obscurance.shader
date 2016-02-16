@@ -114,7 +114,7 @@ Shader "Hidden/Kino/Obscurance"
 
     half CompareNormal(half3 d1, half3 d2)
     {
-        return pow((dot(d1, d2) + 1) * 0.5, 6);
+        return pow((dot(d1, d2) + 1) * 0.5, 80);
     }
 
     half3 CombineObscurance(half3 src, half3 ao)

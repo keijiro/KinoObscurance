@@ -169,13 +169,21 @@ namespace Kino
 
                 Graphics.Blit(null, temp1, _material, 1);
 
-                _material.SetVector("_BlurVector", new Vector2(0.5f, 0));
-                Graphics.Blit(temp1, temp2, _material, 2);
+                if (_noiseFilter > 0)
+                {
+                    _material.SetVector("_BlurVector", new Vector2(1, 0));
+                    Graphics.Blit(temp1, temp2, _material, 2);
 
-                _material.SetVector("_BlurVector", new Vector2(0, 1));
-                Graphics.Blit(temp2, temp3, _material, 2);
+                    _material.SetVector("_BlurVector", new Vector2(0, 1 * div));
+                    Graphics.Blit(temp2, temp3, _material, 2);
 
-                _material.SetTexture("_AOTex", temp3);
+                    _material.SetTexture("_AOTex", temp3);
+                }
+                else
+                {
+                    _material.SetTexture("_AOTex", temp1);
+                }
+
                 Graphics.Blit(source, destination, _material, 3);
 
                 RenderTexture.ReleaseTemporary(temp1);
