@@ -51,9 +51,9 @@ Shader "Hidden/Kino/Obscurance"
     static const float kFallOffDist = 100;
 
     #if _COUNT_LOW
-    static const int _SampleCount = 10;
+    static const int _SampleCount = 6;
     #elif _COUNT_MEDIUM
-    static const int _SampleCount = 16;
+    static const int _SampleCount = 12;
     #else
     int _SampleCount; // given as a uniform
     #endif
@@ -66,6 +66,8 @@ Shader "Hidden/Kino/Obscurance"
 
     float3 RandomVectorSphere(float2 uv, float index)
     {
+        //uv = uv % (_MainTex_TexelSize.xy * 4);
+        uv = (floor(uv / _MainTex_TexelSize.xy) % 4) * _MainTex_TexelSize.xy;
         // Uniformaly distributed points
         // http://mathworld.wolfram.com/SpherePointPicking.html
         float u = UVRandom(uv, 0, index) * 2 - 1;
@@ -79,9 +81,11 @@ Shader "Hidden/Kino/Obscurance"
 
     float2 RandomVectorDisc(float2 uv, float index)
     {
+        //uv = uv % (_MainTex_TexelSize.xy * 4);
+        uv = (floor(uv / _MainTex_TexelSize.xy) % 4) * _MainTex_TexelSize.xy;
         float sn, cs;
         sincos(UVRandom(uv, 0, index) * UNITY_PI * 2, sn, cs);
-        float l = lerp(0.01, 1.0, index / _SampleCount);
+        float l = lerp(0.1, 1.0, index / _SampleCount);
         return float2(sn, cs) * sqrt(l);
     }
 
@@ -140,8 +144,30 @@ Shader "Hidden/Kino/Obscurance"
         float3 pos_o = ReconstructWorldPos(uv, depth_o, p11_22, p13_31);
 
         float ao = 0.0;
-
+#if _METHOD_SPHERE
         for (int s = 0; s < _SampleCount; s++)
+        {
+            // Sampling point
+            float3 v1 = RandomVectorSphere(uv, s);
+            v1 = faceforward(v1, -norm_o, v1);
+            float3 pos_s = pos_o + v1 * _Radius;
+
+            // Re-project the sampling point
+            float3 pos_sc = mul(proj, pos_s);
+            float2 uv_s = (pos_sc.xy / pos_s.z + 1) * 0.5;
+
+            // Sample linear depth at the sampling point.
+            float depth_s = SampleDepth(uv_s);
+
+            // Get the distance.
+            float3 pos_s2 = ReconstructWorldPos(uv_s, depth_s, p11_22, p13_31);
+            float3 v = pos_s2 - pos_o;
+
+            // Calculate the obscurance value.
+            ao += max(dot(v, norm_o) - 0.01, 0) / (dot(v, v) + 0.001);
+        }
+#else
+        for (int s = 0; s < _SampleCount / 2; s++)
         {
             // Sampling point
             float2 v_r = RandomVectorDisc(uv, s) * _Radius;
@@ -173,8 +199,9 @@ Shader "Hidden/Kino/Obscurance"
             a *= saturate(2 - distance(pos_o, wp_s1) / _Radius);
             a *= saturate(2 - distance(pos_o, wp_s2) / _Radius);
 
-            ao += a * 2; // ???
+            ao += a * 8;
         }
+#endif
 
         // Calculate the final AO value.
         float falloff = 1.0 - depth_o / kFallOffDist;

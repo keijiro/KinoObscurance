@@ -167,7 +167,7 @@ namespace Kino
                     source.width, source.height, 0,
                     RenderTextureFormat.R8);
 
-                Graphics.Blit(null, temp1, _material, 1);
+                Graphics.Blit(source, temp1, _material, 1);
 
                 if (_noiseFilter > 0)
                 {
