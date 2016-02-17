@@ -81,7 +81,7 @@ Shader "Hidden/Kino/Obscurance"
     {
         float sn, cs;
         sincos(UVRandom(uv, 0, index) * UNITY_PI * 2, sn, cs);
-        float l = index / _SampleCount;
+        float l = lerp(0.01, 1.0, index / _SampleCount);
         return float2(sn, cs) * sqrt(l);
     }
 
@@ -140,31 +140,40 @@ Shader "Hidden/Kino/Obscurance"
         float3 pos_o = ReconstructWorldPos(uv, depth_o, p11_22, p13_31);
 
         float ao = 0.0;
+
         for (int s = 0; s < _SampleCount; s++)
         {
-#if _METHOD_SPHERE
-            // Sampling point (sphere)
-            float3 v1 = RandomVectorSphere(uv, s);
-            v1 = faceforward(v1, -norm_o, v1);
-            float3 pos_s = pos_o + v1 * _Radius;
+            // Sampling point
+            float2 v_r = RandomVectorDisc(uv, s) * _Radius;
+            float2 uv_s1 = uv + v_r / depth_o;
+            float2 uv_s2 = uv - v_r / depth_o;
 
-            // Re-project the sampling point
-            float3 pos_sc = mul(proj, pos_s);
-            float2 uv_s = (pos_sc.xy / pos_s.z + 1) * 0.5;
-#else
-            // Sampling point (disc)
-            float2 v1 = RandomVectorDisc(uv, s);
-            float2 uv_s = uv + v1 * _Radius / depth_o;
-#endif
-            // Sample linear depth at the sampling point.
-            float depth_s = SampleDepth(uv_s);
+            // Depth at the sampling point
+            float depth_s1 = SampleDepth(uv_s1);
+            float depth_s2 = SampleDepth(uv_s2);
 
-            // Get the distance.
-            float3 pos_s2 = ReconstructWorldPos(uv_s, depth_s, p11_22, p13_31);
-            float3 v = pos_s2 - pos_o;
+            // World position
+            float3 wp_s1 = ReconstructWorldPos(uv_s1, depth_s1, p11_22, p13_31);
+            float3 wp_s2 = ReconstructWorldPos(uv_s2, depth_s2, p11_22, p13_31);
 
-            // Calculate the obscurance value.
-            ao += max(dot(v, norm_o) - 0.01, 0) / (dot(v, v) + 0.001);
+            float3 v_s1 = normalize(wp_s1 - pos_o);
+            float3 v_s2 = normalize(wp_s2 - pos_o);
+
+            float3 dv1 = min(0, dot(v_s1, norm_o));
+            v_s1 = normalize(v_s1 - norm_o * dv1);
+
+            float3 dv2 = min(0, dot(v_s2, norm_o));
+            v_s2 = normalize(v_s2 - norm_o * dv2);
+
+            float3 v_h = normalize(v_s1 + v_s2);
+
+            float a = 1 - acos(dot(v_s1, v_h)) * 2 / UNITY_PI;
+
+            a *= dot(v_h, norm_o) > 0.01;
+            a *= saturate(2 - distance(pos_o, wp_s1) / _Radius);
+            a *= saturate(2 - distance(pos_o, wp_s2) / _Radius);
+
+            ao += a * 2; // ???
         }
 
         // Calculate the final AO value.
