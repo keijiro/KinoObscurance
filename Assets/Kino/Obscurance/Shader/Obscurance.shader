@@ -27,19 +27,24 @@ Shader "Hidden/Kino/Obscurance"
     {
         _MainTex("", 2D) = ""{}
         _AOTex("", 2D) = ""{}
+        _BlurTex("", 2D) = ""{}
     }
     CGINCLUDE
 
     #include "UnityCG.cginc"
 
+    #pragma multi_compile _METHOD_SIMPLE _METHOD_NORMAL
     #pragma multi_compile _ _COUNT_LOW _COUNT_MEDIUM
-    #pragma multi_compile _METHOD_DISC _METHOD_SPHERE
+    #pragma multi_compile _BLUR_3TAP _BLUR_5TAP
 
     sampler2D _MainTex;
     float2 _MainTex_TexelSize;
 
     sampler2D _AOTex;
     float2 _AOTex_TexelSize;
+
+    sampler2D _BlurTex;
+    float2 _BlurTex_TexelSize;
 
     sampler2D _CameraDepthNormalsTexture;
 
@@ -148,7 +153,7 @@ Shader "Hidden/Kino/Obscurance"
         float3 pos_o = ReconstructWorldPos(uv, depth_o, p11_22, p13_31);
 
         float ao = 0.0;
-#if _METHOD_SPHERE
+#if _METHOD_NORMAL
         for (int s = 0; s < _SampleCount; s++)
         {
             // Sampling point
@@ -215,16 +220,16 @@ Shader "Hidden/Kino/Obscurance"
     half3 SeparableBlur(float2 uv, float2 delta)
     {
         half3 n0 = SampleNormal(uv);
-#if 0
+#ifdef _BLUR_3TAP
         half2 uv1 = uv - delta;
         half2 uv2 = uv + delta;
 
         half w1 = CompareNormal(n0, SampleNormal(uv1));
         half w2 = CompareNormal(n0, SampleNormal(uv2));
 
-        half3 s = tex2D(_MainTex, uv) * 2;
-        s += tex2D(_MainTex, uv1) * w1;
-        s += tex2D(_MainTex, uv2) * w2;
+        half3 s = tex2D(_BlurTex, uv) * 2;
+        s += tex2D(_BlurTex, uv1) * w1;
+        s += tex2D(_BlurTex, uv2) * w2;
 
         return s / (2 + w1 + w2);
 #else
@@ -238,11 +243,11 @@ Shader "Hidden/Kino/Obscurance"
         half w3 = CompareNormal(n0, SampleNormal(uv3));
         half w4 = CompareNormal(n0, SampleNormal(uv4));
 
-        half3 s = tex2D(_MainTex, uv) * 3;
-        s += tex2D(_MainTex, uv1) * w1;
-        s += tex2D(_MainTex, uv2) * w2 * 2;
-        s += tex2D(_MainTex, uv3) * w3 * 2;
-        s += tex2D(_MainTex, uv4) * w4;
+        half3 s = tex2D(_BlurTex, uv) * 3;
+        s += tex2D(_BlurTex, uv1) * w1;
+        s += tex2D(_BlurTex, uv2) * w2 * 2;
+        s += tex2D(_BlurTex, uv3) * w3 * 2;
+        s += tex2D(_BlurTex, uv4) * w4;
 
         return s / (3 + w1 + w2 *2 + w3 *2 + w4);
 #endif
@@ -260,16 +265,24 @@ Shader "Hidden/Kino/Obscurance"
         return CalculateObscurance(i.uv);
     }
 
-    half4 frag_blur(v2f_img i) : SV_Target
-    {
-        float2 delta = _MainTex_TexelSize.xy * _BlurVector;
-        return half4(SeparableBlur(i.uv, delta), 0);
-    }
-
     half4 frag_combine(v2f_img i) : SV_Target
     {
         half4 src = tex2D(_MainTex, i.uv);
         half ao = tex2D(_AOTex, i.uv);
+        return half4(CombineObscurance(src.rgb, ao), src.a);
+    }
+
+    half4 frag_blur(v2f_img i) : SV_Target
+    {
+        float2 delta = _BlurTex_TexelSize.xy * _BlurVector;
+        return half4(SeparableBlur(i.uv, delta), 0);
+    }
+
+    half4 frag_blur_combine(v2f_img i) : SV_Target
+    {
+        half4 src = tex2D(_MainTex, i.uv);
+        float2 delta = _BlurTex_TexelSize.xy * _BlurVector;
+        half ao = SeparableBlur(i.uv, delta);
         return half4(CombineObscurance(src.rgb, ao), src.a);
     }
 
@@ -299,6 +312,15 @@ Shader "Hidden/Kino/Obscurance"
             ZTest Always Cull Off ZWrite Off
             CGPROGRAM
             #pragma vertex vert_img
+            #pragma fragment frag_combine
+            #pragma target 3.0
+            ENDCG
+        }
+        Pass
+        {
+            ZTest Always Cull Off ZWrite Off
+            CGPROGRAM
+            #pragma vertex vert_img
             #pragma fragment frag_blur
             #pragma target 3.0
             ENDCG
@@ -308,7 +330,7 @@ Shader "Hidden/Kino/Obscurance"
             ZTest Always Cull Off ZWrite Off
             CGPROGRAM
             #pragma vertex vert_img
-            #pragma fragment frag_combine
+            #pragma fragment frag_blur_combine
             #pragma target 3.0
             ENDCG
         }

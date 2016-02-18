@@ -41,15 +41,6 @@ namespace Kino
         [SerializeField, Range(0, 2)]
         float _intensity = 1;
 
-        /// Obscurance contrast
-        public float contrast {
-            get { return _contrast; }
-            set { _contrast = value; }
-        }
-
-        [SerializeField, Range(0.01f, 2)]
-        float _contrast = 0.8f;
-
         /// Sampling radius
         public float radius {
             get { return _radius; }
@@ -57,20 +48,20 @@ namespace Kino
         }
 
         [SerializeField]
-        float _radius = 0.5f;
+        float _radius = 0.3f;
 
-        /// Sampling method
-        public SamplingMethod samplingMethod {
-            get { return _samplingMethod; }
-            set { _samplingMethod = value; }
+        /// SSAO method
+        public Method method {
+            get { return _method; }
+            set { _method = value; }
         }
 
-        public enum SamplingMethod { Disc, Sphere }
+        public enum Method { Simple, Normal }
 
         [SerializeField]
-        SamplingMethod _samplingMethod = SamplingMethod.Sphere;
+        Method _method = Method.Normal;
 
-        /// Sample count option
+        /// Sample count options
         public SampleCount sampleCount {
             get { return _sampleCount; }
             set { _sampleCount = value; }
@@ -88,25 +79,25 @@ namespace Kino
         }
 
         [SerializeField]
-        int _sampleCountValue = 24;
+        int _sampleCountValue = 20;
 
         /// Noise filter
-        public float NoiseFilter {
+        public int NoiseFilter {
             get { return _noiseFilter; }
             set { _noiseFilter = value; }
         }
 
-        [SerializeField, Range(0, 1)]
-        float _noiseFilter = 0;
+        [SerializeField, Range(0, 2)]
+        int _noiseFilter = 2;
 
-        /// Downsampling
-        public bool downsample {
-            get { return _downsample; }
-            set { _downsample = value; }
+        /// Downsampling (half-resolution mode)
+        public bool downsampling {
+            get { return _downsampling; }
+            set { _downsampling = value; }
         }
 
         [SerializeField]
-        bool _downsample = false;
+        bool _downsampling = false;
 
         #endregion
 
@@ -133,16 +124,16 @@ namespace Kino
                 _material.hideFlags = HideFlags.DontSave;
             }
 
+            // common properties
             _material.SetFloat("_Intensity", _intensity);
-            _material.SetFloat("_Contrast", _contrast);
-            _material.SetFloat("_Radius", _radius);
+            _material.SetFloat("_Contrast", 0.6f);
+            _material.SetFloat("_Radius", Mathf.Max(_radius, 0));
 
+            // common keywords
             _material.shaderKeywords = null;
 
-            if (_samplingMethod == SamplingMethod.Disc)
-                _material.EnableKeyword("_METHOD_DISC");
-            else
-                _material.EnableKeyword("_METHOD_SPHERE");
+            if (_method == Method.Normal)
+                _material.EnableKeyword("_METHOD_NORMAL");
 
             if (_sampleCount == SampleCount.Low)
                 _material.EnableKeyword("_COUNT_LOW");
@@ -151,48 +142,45 @@ namespace Kino
             else
                 _material.SetInt("_SampleCount", _sampleCountValue);
 
-            if (_noiseFilter > 0 || _downsample)
+            // use the combined single-pass shader when no filtering
+            if (_noiseFilter == 0 && !_downsampling)
             {
-                var div = _downsample ? 2 : 1;
-
-                var temp1 = RenderTexture.GetTemporary(
-                    source.width / div, source.height / div, 0,
-                    RenderTextureFormat.R8);
-
-                var temp2 = RenderTexture.GetTemporary(
-                    source.width, source.height, 0,
-                    RenderTextureFormat.R8);
-
-                var temp3 = RenderTexture.GetTemporary(
-                    source.width, source.height, 0,
-                    RenderTextureFormat.R8);
-
-                Graphics.Blit(source, temp1, _material, 1);
-
-                if (_noiseFilter > 0)
-                {
-                    _material.SetVector("_BlurVector", new Vector2(1, 0));
-                    Graphics.Blit(temp1, temp2, _material, 2);
-
-                    _material.SetVector("_BlurVector", new Vector2(0, 1 * div));
-                    Graphics.Blit(temp2, temp3, _material, 2);
-
-                    _material.SetTexture("_AOTex", temp3);
-                }
-                else
-                {
-                    _material.SetTexture("_AOTex", temp1);
-                }
-
-                Graphics.Blit(source, destination, _material, 3);
-
-                RenderTexture.ReleaseTemporary(temp1);
-                RenderTexture.ReleaseTemporary(temp2);
-                RenderTexture.ReleaseTemporary(temp3);
+                Graphics.Blit(source, destination, _material, 0);
             }
             else
             {
-                Graphics.Blit(source, destination, _material, 0);
+                var div = _downsampling ? 2 : 1;
+                var tw = source.width;
+                var th = source.height;
+                var r8 = RenderTextureFormat.R8;
+
+                // get ao image
+                var rtAO = RenderTexture.GetTemporary(tw / div, th / div, 0, r8);
+                Graphics.Blit(source, rtAO, _material, 1);
+
+                if (_noiseFilter == 0)
+                {
+                    // combine ao
+                    _material.SetTexture("_AOTex", rtAO);
+                    Graphics.Blit(source, destination, _material, 2);
+                }
+                else
+                {
+                    // apply the separable blur filter
+                    var rtBlur = RenderTexture.GetTemporary(tw, th, 0, r8);
+
+                    if (_noiseFilter == 2) _material.EnableKeyword("_BLUR_5TAP");
+
+                    _material.SetTexture("_BlurTex", rtAO);
+                    _material.SetVector("_BlurVector", Vector2.right);
+                    Graphics.Blit(source, rtBlur, _material, 3);
+
+                    _material.SetTexture("_BlurTex", rtBlur);
+                    _material.SetVector("_BlurVector", Vector2.up * div);
+                    Graphics.Blit(source, destination, _material, 4);
+
+                    RenderTexture.ReleaseTemporary(rtBlur);
+                }
             }
         }
 

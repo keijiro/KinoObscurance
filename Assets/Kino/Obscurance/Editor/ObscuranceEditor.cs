@@ -31,26 +31,24 @@ namespace Kino
     public class ObscuranceEditor : Editor
     {
         SerializedProperty _intensity;
-        SerializedProperty _contrast;
         SerializedProperty _radius;
-        SerializedProperty _samplingMethod;
+        SerializedProperty _method;
         SerializedProperty _sampleCount;
         SerializedProperty _sampleCountValue;
         SerializedProperty _noiseFilter;
-        SerializedProperty _downsample;
+        SerializedProperty _downsampling;
 
         static GUIContent _textValue = new GUIContent("Value");
 
         void OnEnable()
         {
             _intensity = serializedObject.FindProperty("_intensity");
-            _contrast = serializedObject.FindProperty("_contrast");
             _radius = serializedObject.FindProperty("_radius");
-            _samplingMethod = serializedObject.FindProperty("_samplingMethod");
+            _method = serializedObject.FindProperty("_method");
             _sampleCount = serializedObject.FindProperty("_sampleCount");
             _sampleCountValue = serializedObject.FindProperty("_sampleCountValue");
             _noiseFilter = serializedObject.FindProperty("_noiseFilter");
-            _downsample = serializedObject.FindProperty("_downsample");
+            _downsampling = serializedObject.FindProperty("_downsampling");
         }
 
         public override void OnInspectorGUI()
@@ -58,10 +56,8 @@ namespace Kino
             serializedObject.Update();
 
             EditorGUILayout.PropertyField(_intensity);
-            EditorGUILayout.PropertyField(_contrast);
             EditorGUILayout.PropertyField(_radius);
-
-            EditorGUILayout.PropertyField(_samplingMethod);
+            EditorGUILayout.PropertyField(_method);
             EditorGUILayout.PropertyField(_sampleCount);
 
             if (_sampleCount.hasMultipleDifferentValues ||
@@ -73,7 +69,7 @@ namespace Kino
             }
 
             EditorGUILayout.PropertyField(_noiseFilter);
-            EditorGUILayout.PropertyField(_downsample);
+            EditorGUILayout.PropertyField(_downsampling);
 
             serializedObject.ApplyModifiedProperties();
         }
