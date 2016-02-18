@@ -88,9 +88,9 @@ Shader "Hidden/Kino/Obscurance"
     {
         float gn = gradientNoise(uv / _MainTex_TexelSize);
         float sn, cs;
-        sincos(UVRandom(0, 0, index) * UNITY_PI * 2 * gn, sn, cs);
+        sincos((UVRandom(0, 0, index) + gn) * UNITY_PI * 2, sn, cs);
         float l = lerp(0.1, 1.0, index / _SampleCount);
-        return float2(sn, cs) * sqrt(l);
+        return float2(sn, cs) * l;
     }
 
     float SampleDepth(float2 uv)
