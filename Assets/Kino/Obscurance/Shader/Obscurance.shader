@@ -64,14 +64,19 @@ Shader "Hidden/Kino/Obscurance"
         return frac(sin(dot(uv, float2(12.9898, 78.233))) * 43758.5453);
     }
 
+    float gradientNoise(float2 uv)
+    {
+        float f = dot(float2(0.06711056f, 0.00583715f), uv);
+        return frac(52.9829189f * frac(f));
+    }
+
     float3 RandomVectorSphere(float2 uv, float index)
     {
-        //uv = uv % (_MainTex_TexelSize.xy * 4);
-        uv = (floor(uv / _MainTex_TexelSize.xy) % 4) * _MainTex_TexelSize.xy;
         // Uniformaly distributed points
         // http://mathworld.wolfram.com/SpherePointPicking.html
-        float u = UVRandom(uv, 0, index) * 2 - 1;
-        float theta = UVRandom(uv, 1, index) * UNITY_PI * 2;
+        float u = UVRandom(0, 0, index) * 2 - 1;
+        float gn = gradientNoise(uv / _MainTex_TexelSize);
+        float theta = (UVRandom(0, 1, index) + gn) * UNITY_PI * 2;
         float u2 = sqrt(1 - u * u);
         float3 v = float3(u2 * cos(theta), u2 * sin(theta), u);
         // Adjustment for distance distribution
@@ -81,10 +86,9 @@ Shader "Hidden/Kino/Obscurance"
 
     float2 RandomVectorDisc(float2 uv, float index)
     {
-        //uv = uv % (_MainTex_TexelSize.xy * 4);
-        uv = (floor(uv / _MainTex_TexelSize.xy) % 4) * _MainTex_TexelSize.xy;
+        float gn = gradientNoise(uv / _MainTex_TexelSize);
         float sn, cs;
-        sincos(UVRandom(uv, 0, index) * UNITY_PI * 2, sn, cs);
+        sincos(UVRandom(0, 0, index) * UNITY_PI * 2 * gn, sn, cs);
         float l = lerp(0.1, 1.0, index / _SampleCount);
         return float2(sn, cs) * sqrt(l);
     }
@@ -211,7 +215,19 @@ Shader "Hidden/Kino/Obscurance"
     half3 SeparableBlur(float2 uv, float2 delta)
     {
         half3 n0 = SampleNormal(uv);
+#if 0
+        half2 uv1 = uv - delta;
+        half2 uv2 = uv + delta;
 
+        half w1 = CompareNormal(n0, SampleNormal(uv1));
+        half w2 = CompareNormal(n0, SampleNormal(uv2));
+
+        half3 s = tex2D(_MainTex, uv) * 2;
+        s += tex2D(_MainTex, uv1) * w1;
+        s += tex2D(_MainTex, uv2) * w2;
+
+        return s / (2 + w1 + w2);
+#else
         half2 uv1 = uv - delta * 2;
         half2 uv2 = uv - delta;
         half2 uv3 = uv + delta;
@@ -229,6 +245,7 @@ Shader "Hidden/Kino/Obscurance"
         s += tex2D(_MainTex, uv4) * w4;
 
         return s / (3 + w1 + w2 *2 + w3 *2 + w4);
+#endif
     }
 
     half4 frag_ao_combined(v2f_img i) : SV_Target
