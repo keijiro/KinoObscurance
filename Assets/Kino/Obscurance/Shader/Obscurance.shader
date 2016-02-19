@@ -44,8 +44,8 @@ Shader "Hidden/Kino/Obscurance"
     sampler2D _MainTex;
     sampler2D _MaskTex;
 
-    float2 _MainTex_TexelSize;
-    float2 _MaskTex_TexelSize;
+    float4 _MainTex_TexelSize;
+    float4 _MaskTex_TexelSize;
 
     sampler2D _CameraDepthNormalsTexture;
 
@@ -53,6 +53,7 @@ Shader "Hidden/Kino/Obscurance"
     half _Contrast;
     float _Radius;
     float _DepthFallOff;
+    float _TargetScale;
     float2 _BlurVector;
 
     #if _COUNT_LOW
@@ -81,7 +82,7 @@ Shader "Hidden/Kino/Obscurance"
     // Interleaved gradient from Jimenez 2014 http://goo.gl/eomGso
     float GradientNoise(float2 uv)
     {
-        float f = dot(float2(0.06711056f, 0.00583715f), uv);
+        float f = dot(float2(0.06711056f, 0.00583715f), floor(uv));
         return frac(52.9829189f * frac(f));
     }
 
@@ -133,7 +134,7 @@ Shader "Hidden/Kino/Obscurance"
     // Sample point picker for the angle-based method
     float2 PickSamplePoint(float2 uv, float index)
     {
-        float gn = GradientNoise(uv / _MainTex_TexelSize);
+        float gn = GradientNoise(uv * _ScreenParams.xy * _TargetScale);
         float theta = (UVRandom(0, index) + gn) * UNITY_PI * 2;
         // make them distributed between [0, _Radius]
         float l = lerp(0.1, 1.0, index / _SampleCount) * _Radius;
@@ -146,7 +147,7 @@ Shader "Hidden/Kino/Obscurance"
     float3 PickSamplePoint(float2 uv, float index)
     {
         // uniformaly distributed points on a unit sphere http://goo.gl/X2F1Ho
-        float gn = GradientNoise(uv / _MainTex_TexelSize);
+        float gn = GradientNoise(uv * _ScreenParams.xy * _TargetScale);
         float u = frac(UVRandom(0, index) + gn) * 2 - 1;
         float theta = (UVRandom(1, index) + gn) * UNITY_PI * 2;
         float3 v = float3(CosSin(theta) * sqrt(1 - u * u), u);

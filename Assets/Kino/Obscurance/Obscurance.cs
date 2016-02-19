@@ -132,6 +132,7 @@ namespace Kino
             _material.SetFloat("_Contrast", 0.6f);
             _material.SetFloat("_Radius", Mathf.Max(_radius, 1e-5f));
             _material.SetFloat("_DepthFallOff", 100);
+            _material.SetFloat("_TargetScale", _downsampling ? 0.5f : 1);
 
             // common keywords
             _material.shaderKeywords = null;
@@ -172,17 +173,33 @@ namespace Kino
                 else
                 {
                     // apply the separable blur filter
-                    var rtBlur = RenderTexture.GetTemporary(tw, th, 0, r8);
+                    var rtBlur = RenderTexture.GetTemporary(tw / div, th / div, 0, r8);
 
                     if (_noiseFilter == 2) _material.EnableKeyword("_BLUR_5TAP");
 
+                    // 1st blur pass
                     _material.SetTexture("_MaskTex", rtMask);
                     _material.SetVector("_BlurVector", Vector2.right);
                     Graphics.Blit(source, rtBlur, _material, 3);
 
-                    _material.SetTexture("_MaskTex", rtBlur);
-                    _material.SetVector("_BlurVector", Vector2.up * div);
-                    Graphics.Blit(source, destination, _material, 4);
+                    if (_downsampling)
+                    {
+                        // 2nd blur pass
+                        _material.SetTexture("_MaskTex", rtBlur);
+                        _material.SetVector("_BlurVector", Vector2.up);
+                        Graphics.Blit(source, rtMask, _material, 3);
+
+                        // combine ao
+                        _material.SetTexture("_MaskTex", rtMask);
+                        Graphics.Blit(source, destination, _material, 2);
+                    }
+                    else
+                    {
+                        // 2nd blur and combiner in a single pass
+                        _material.SetTexture("_MaskTex", rtBlur);
+                        _material.SetVector("_BlurVector", Vector2.up);
+                        Graphics.Blit(source, destination, _material, 4);
+                    }
 
                     RenderTexture.ReleaseTemporary(rtBlur);
                 }
