@@ -26,78 +26,66 @@ Shader "Hidden/Kino/Obscurance"
     Properties
     {
         _MainTex("", 2D) = ""{}
-        _AOTex("", 2D) = ""{}
-        _BlurTex("", 2D) = ""{}
+        _MaskTex("", 2D) = ""{}
     }
     CGINCLUDE
 
     #include "UnityCG.cginc"
 
+    // estimator type selection
     #pragma multi_compile _METHOD_ANGLE _METHOD_DISTANCE
+
+    // sample count (reconfigurable when no keyword is given)
     #pragma multi_compile _ _COUNT_LOW _COUNT_MEDIUM
+
+    // noise filter quality
     #pragma multi_compile _BLUR_3TAP _BLUR_5TAP
 
     sampler2D _MainTex;
+    sampler2D _MaskTex;
+
     float2 _MainTex_TexelSize;
-
-    sampler2D _AOTex;
-    float2 _AOTex_TexelSize;
-
-    sampler2D _BlurTex;
-    float2 _BlurTex_TexelSize;
+    float2 _MaskTex_TexelSize;
 
     sampler2D _CameraDepthNormalsTexture;
 
     half _Intensity;
     half _Contrast;
     float _Radius;
+    float _DepthFallOff;
     float2 _BlurVector;
-
-    static const float kFallOffDist = 100;
 
     #if _COUNT_LOW
     static const int _SampleCount = 6;
     #elif _COUNT_MEDIUM
     static const int _SampleCount = 12;
     #else
-    int _SampleCount; // given as a uniform
+    int _SampleCount; // given via uniform
     #endif
 
-    float UVRandom(float2 uv, float dx, float dy)
+    // Small utility for sin/cos
+    float2 CosSin(float theta)
     {
-        uv += float2(dx, dy + _Time.x * 0);
-        return frac(sin(dot(uv, float2(12.9898, 78.233))) * 43758.5453);
+        float sn, cs;
+        sincos(theta, sn, cs);
+        return float2(cs, sn);
     }
 
-    float gradientNoise(float2 uv)
+    // Pseudo random number generator with 2D argument
+    float UVRandom(float u, float v)
+    {
+        float f = dot(float2(12.9898, 78.233), float2(u, v));
+        return frac(43758.5453 * sin(f));
+    }
+
+    // Interleaved gradient from Jimenez 2014 http://goo.gl/eomGso
+    float GradientNoise(float2 uv)
     {
         float f = dot(float2(0.06711056f, 0.00583715f), uv);
         return frac(52.9829189f * frac(f));
     }
 
-    float3 RandomVectorSphere(float2 uv, float index)
-    {
-        // Uniformaly distributed points
-        // http://mathworld.wolfram.com/SpherePointPicking.html
-        float u = UVRandom(0, 0, index) * 2 - 1;
-        float gn = gradientNoise(uv / _MainTex_TexelSize);
-        float theta = (UVRandom(0, 1, index) + gn) * UNITY_PI * 2;
-        float u2 = sqrt(1 - u * u);
-        float3 v = float3(u2 * cos(theta), u2 * sin(theta), u);
-        // Adjustment for distance distribution
-        float l = index / _SampleCount;
-        return v * lerp(0.1, 1.0, pow(l, 1.0 / 3));
-    }
-
-    float2 RandomVectorDisc(float2 uv, float index)
-    {
-        float gn = gradientNoise(uv / _MainTex_TexelSize);
-        float sn, cs;
-        sincos((UVRandom(0, 0, index) + gn) * UNITY_PI * 2, sn, cs);
-        float l = lerp(0.1, 1.0, index / _SampleCount);
-        return float2(sn, cs) * l;
-    }
-
+    // Sampling functions with CameraDepthNormalTexture
     float SampleDepth(float2 uv)
     {
         float4 cdn = tex2D(_CameraDepthNormalsTexture, uv);
@@ -120,170 +108,233 @@ Shader "Hidden/Kino/Obscurance"
         return DecodeFloatRG(cdn.zw) * _ProjectionParams.z;
     }
 
+    // Reconstruct a world space position from a pair of UV and depth
+    // p11_22 = (unity_CameraProjection._11, unity_CameraProjection._22)
+    // p13_31 = (unity_CameraProjection._13, unity_CameraProjection._23)
     float3 ReconstructWorldPos(float2 uv, float depth, float2 p11_22, float2 p13_31)
     {
         return float3((uv * 2 - 1 - p13_31) / p11_22, 1) * depth;
     }
 
+    // Normal vector comparer (for geometry-aware weighting)
     half CompareNormal(half3 d1, half3 d2)
     {
         return pow((dot(d1, d2) + 1) * 0.5, 80);
     }
 
-    half3 CombineObscurance(half3 src, half3 ao)
+    // Final combiner function
+    half3 CombineObscurance(half3 src, half3 mask)
     {
-        return lerp(src, 0, ao);
+        return lerp(src, 0, mask);
     }
 
-    float CalculateObscurance(float2 uv)
+    #if _METHOD_ANGLE
+
+    // Sample point picker for the angle-based method
+    float2 PickSamplePoint(float2 uv, float index)
     {
-        // Parameters used for coordinate conversion
+        float gn = GradientNoise(uv / _MainTex_TexelSize);
+        float theta = (UVRandom(0, index) + gn) * UNITY_PI * 2;
+        // make them distributed between [0, _Radius]
+        float l = lerp(0.1, 1.0, index / _SampleCount) * _Radius;
+        return CosSin(theta) * l;
+    }
+
+    #else // _METHOD_DISTANCE
+
+    // Sample point picker for the distance-based method
+    float3 PickSamplePoint(float2 uv, float index)
+    {
+        // uniformaly distributed points on a unit sphere http://goo.gl/X2F1Ho
+        float gn = GradientNoise(uv / _MainTex_TexelSize);
+        float u = frac(UVRandom(0, index) + gn) * 2 - 1;
+        float theta = (UVRandom(1, index) + gn) * UNITY_PI * 2;
+        float3 v = float3(CosSin(theta) * sqrt(1 - u * u), u);
+        // make them distributed between [0, _Radius]
+        float l = lerp(0.1, 1.0, pow(index / _SampleCount, 1.0 / 3)) * _Radius;
+        return v * l;
+    }
+
+    #endif
+
+    // Obscurance estimator function
+    float EstimateObscurance(float2 uv)
+    {
+        // parameters used in coordinate conversion
         float3x3 proj = (float3x3)unity_CameraProjection;
         float2 p11_22 = float2(unity_CameraProjection._11, unity_CameraProjection._22);
         float2 p13_31 = float2(unity_CameraProjection._13, unity_CameraProjection._23);
 
-        // View space normal and depth
+        // view space normal and depth
         float3 norm_o;
         float depth_o = SampleDepthNormal(uv, norm_o);
 
-        // Early-out case
-        if (depth_o > kFallOffDist) return 0;
+        // early-out case
+        // if (depth_o > kFallOffDist) return 0;
 
-        // Reconstruct the view-space position.
-        float3 pos_o = ReconstructWorldPos(uv, depth_o, p11_22, p13_31);
+        // reconstruct the view-space position
+        float3 wpos_o = ReconstructWorldPos(uv, depth_o, p11_22, p13_31);
 
         float ao = 0.0;
-#if _METHOD_DISTANCE
-        for (int s = 0; s < _SampleCount; s++)
-        {
-            // Sampling point
-            float3 v1 = RandomVectorSphere(uv, s);
-            v1 = faceforward(v1, -norm_o, v1);
-            float3 pos_s = pos_o + v1 * _Radius;
 
-            // Re-project the sampling point
-            float3 pos_sc = mul(proj, pos_s);
-            float2 uv_s = (pos_sc.xy / pos_s.z + 1) * 0.5;
+        #if _METHOD_ANGLE
 
-            // Sample linear depth at the sampling point.
-            float depth_s = SampleDepth(uv_s);
-
-            // Get the distance.
-            float3 pos_s2 = ReconstructWorldPos(uv_s, depth_s, p11_22, p13_31);
-            float3 v = pos_s2 - pos_o;
-
-            // Calculate the obscurance value.
-            ao += max(dot(v, norm_o) - 0.01, 0) / (dot(v, v) + 0.001);
-        }
-#else
+        // Angle-based estimator based on Mittring 2012 http://goo.gl/wPZrAA
         for (int s = 0; s < _SampleCount / 2; s++)
         {
-            // Sampling point
-            float2 v_r = RandomVectorDisc(uv, s) * _Radius;
-            float2 uv_s1 = uv + v_r / depth_o;
-            float2 uv_s2 = uv - v_r / depth_o;
+            // pair of sampling point
+            float2 v_s = PickSamplePoint(uv, s);
+            float2 uv_s1 = uv + v_s / depth_o;
+            float2 uv_s2 = uv - v_s / depth_o;
 
-            // Depth at the sampling point
+            // fetch depth value
             float depth_s1 = SampleDepth(uv_s1);
             float depth_s2 = SampleDepth(uv_s2);
 
-            // World position
-            float3 wp_s1 = ReconstructWorldPos(uv_s1, depth_s1, p11_22, p13_31);
-            float3 wp_s2 = ReconstructWorldPos(uv_s2, depth_s2, p11_22, p13_31);
+            // world position
+            float3 wpos_s1 = ReconstructWorldPos(uv_s1, depth_s1, p11_22, p13_31);
+            float3 wpos_s2 = ReconstructWorldPos(uv_s2, depth_s2, p11_22, p13_31);
 
-            float3 v_s1 = normalize(wp_s1 - pos_o);
-            float3 v_s2 = normalize(wp_s2 - pos_o);
+            // vector towards the sampling points
+            float3 v_s1 = wpos_s1 - wpos_o;
+            float3 v_s2 = wpos_s2 - wpos_o;
 
-            float3 dv1 = min(0, dot(v_s1, norm_o));
-            v_s1 = normalize(v_s1 - norm_o * dv1);
+            // clip the vectors with the tangent plane
+            v_s1 = normalize(v_s1 - norm_o * min(0, dot(v_s1, norm_o)));
+            v_s2 = normalize(v_s2 - norm_o * min(0, dot(v_s1, norm_o)));
 
-            float3 dv2 = min(0, dot(v_s2, norm_o));
-            v_s2 = normalize(v_s2 - norm_o * dv2);
-
+            // get the angle between the vectors
             float3 v_h = normalize(v_s1 + v_s2);
+            float op = asin(dot(v_s1, v_h)) * 4 / UNITY_PI;
 
-            float a = 1 - acos(dot(v_s1, v_h)) * 2 / UNITY_PI;
+            // reject backfacing cases
+            const float epsilon = 0.05; // empirical value
+            op *= dot(v_h, norm_o) > epsilon;
 
-            a *= dot(v_h, norm_o) > 0.01;
-            a *= saturate(2 - distance(pos_o, wp_s1) / _Radius);
-            a *= saturate(2 - distance(pos_o, wp_s2) / _Radius);
+            // fall off with the distance from the origin
+            op *= saturate(2 - distance(wpos_o, wpos_s1) / _Radius);
+            op *= saturate(2 - distance(wpos_o, wpos_s2) / _Radius);
 
-            ao += a * 8;
+            ao += op * 2;
         }
-#endif
 
-        // Calculate the final AO value.
-        float falloff = 1.0 - depth_o / kFallOffDist;
-        return pow(ao * _Intensity * falloff / _SampleCount, _Contrast);
+        #else // _METHOD_DISTANCE
+
+        // Distance-based estimator based on Morgan 2011 http://goo.gl/2iz3P
+        for (int s = 0; s < _SampleCount; s++)
+        {
+            // sampling point
+            float3 v_s1 = PickSamplePoint(uv, s);
+            v_s1 = faceforward(v_s1, -norm_o, v_s1);
+            float3 wpos_s1 = wpos_o + v_s1;
+
+            // reproject the sampling point
+            float3 spos_s1 = mul(proj, wpos_s1);
+            float2 uv_s1 = (spos_s1.xy / wpos_s1.z + 1) * 0.5;
+
+            // depth at the sampling point
+            float depth_s1 = SampleDepth(uv_s1);
+
+            // distance to the sampling point
+            float3 wpos_s2 = ReconstructWorldPos(uv_s1, depth_s1, p11_22, p13_31);
+            float3 v_s2 = wpos_s2 - wpos_o;
+
+            // estimate the obscurance value
+            const float beta = 0.01;     // empirical value
+            const float epsilon = 0.001; // empirical value
+            ao += max(dot(v_s2, norm_o) - beta, 0) / (dot(v_s2, v_s2) + epsilon);
+        }
+
+        ao *= (1 / UNITY_PI); // intensity normalization
+
+        #endif
+
+        // apply the depth fall-off
+        ao *= 1.0 - depth_o / _DepthFallOff;
+
+        // apply other parameters
+        return pow(ao * _Intensity / _SampleCount, _Contrast);
     }
 
-    half3 SeparableBlur(float2 uv, float2 delta)
+    // Separable blur filter for noise reduction
+    half3 SeparableBlur(sampler2D tex, float2 uv, float2 delta)
     {
         half3 n0 = SampleNormal(uv);
+
 #ifdef _BLUR_3TAP
+
         half2 uv1 = uv - delta;
         half2 uv2 = uv + delta;
 
+        half w0 = 2;
         half w1 = CompareNormal(n0, SampleNormal(uv1));
         half w2 = CompareNormal(n0, SampleNormal(uv2));
 
-        half3 s = tex2D(_BlurTex, uv) * 2;
-        s += tex2D(_BlurTex, uv1) * w1;
-        s += tex2D(_BlurTex, uv2) * w2;
+        half3 s = tex2D(tex, uv) * w0;
+        s += tex2D(tex, uv1) * w1;
+        s += tex2D(tex, uv2) * w2;
 
-        return s / (2 + w1 + w2);
-#else
-        half2 uv1 = uv - delta * 2;
-        half2 uv2 = uv - delta;
-        half2 uv3 = uv + delta;
+        return s / (w0 + w1 + w2);
+
+#else // _BLUR_5TAP
+
+        half2 uv1 = uv - delta;
+        half2 uv2 = uv + delta;
+        half2 uv3 = uv - delta * 2;
         half2 uv4 = uv + delta * 2;
 
-        half w1 = CompareNormal(n0, SampleNormal(uv1));
-        half w2 = CompareNormal(n0, SampleNormal(uv2));
+        half w0 = 3;
+        half w1 = CompareNormal(n0, SampleNormal(uv1)) * 2;
+        half w2 = CompareNormal(n0, SampleNormal(uv2)) * 2;
         half w3 = CompareNormal(n0, SampleNormal(uv3));
         half w4 = CompareNormal(n0, SampleNormal(uv4));
 
-        half3 s = tex2D(_BlurTex, uv) * 3;
-        s += tex2D(_BlurTex, uv1) * w1;
-        s += tex2D(_BlurTex, uv2) * w2 * 2;
-        s += tex2D(_BlurTex, uv3) * w3 * 2;
-        s += tex2D(_BlurTex, uv4) * w4;
+        half3 s = tex2D(tex, uv) * w0;
+        s += tex2D(tex, uv1) * w1;
+        s += tex2D(tex, uv2) * w2;
+        s += tex2D(tex, uv3) * w3;
+        s += tex2D(tex, uv4) * w4;
 
-        return s / (3 + w1 + w2 *2 + w3 *2 + w4);
+        return s / (w0 + w1 + w2 + w3 + w4);
 #endif
     }
 
+    // Pass 0: single pass shader (no additional filtering)
     half4 frag_ao_combined(v2f_img i) : SV_Target
     {
         half4 src = tex2D(_MainTex, i.uv);
-        half ao = CalculateObscurance(i.uv);
+        half ao = EstimateObscurance(i.uv);
         return half4(CombineObscurance(src.rgb, ao), src.a);
     }
 
+    // Pass 1: obscurance estimation pass
     half4 frag_ao(v2f_img i) : SV_Target
     {
-        return CalculateObscurance(i.uv);
+        return EstimateObscurance(i.uv);
     }
 
+    // Pass 2: combiner
     half4 frag_combine(v2f_img i) : SV_Target
     {
         half4 src = tex2D(_MainTex, i.uv);
-        half ao = tex2D(_AOTex, i.uv);
-        return half4(CombineObscurance(src.rgb, ao), src.a);
+        half mask = tex2D(_MaskTex, i.uv);
+        return half4(CombineObscurance(src.rgb, mask), src.a);
     }
 
+    // Pass3: separable blur filter
     half4 frag_blur(v2f_img i) : SV_Target
     {
-        float2 delta = _BlurTex_TexelSize.xy * _BlurVector;
-        return half4(SeparableBlur(i.uv, delta), 0);
+        float2 delta = _MaskTex_TexelSize.xy * _BlurVector;
+        return half4(SeparableBlur(_MaskTex, i.uv, delta), 0);
     }
 
+    // Pass 4: separable blur + combiner
     half4 frag_blur_combine(v2f_img i) : SV_Target
     {
         half4 src = tex2D(_MainTex, i.uv);
-        float2 delta = _BlurTex_TexelSize.xy * _BlurVector;
-        half ao = SeparableBlur(i.uv, delta);
-        return half4(CombineObscurance(src.rgb, ao), src.a);
+        float2 delta = _MaskTex_TexelSize.xy * _BlurVector;
+        half mask = SeparableBlur(_MaskTex, i.uv, delta);
+        return half4(CombineObscurance(src.rgb, mask), src.a);
     }
 
     ENDCG

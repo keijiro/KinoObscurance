@@ -38,7 +38,7 @@ namespace Kino
             set { _intensity = value; }
         }
 
-        [SerializeField, Range(0, 2)]
+        [SerializeField, Range(0, 4)]
         float _intensity = 1;
 
         /// Sampling radius
@@ -130,7 +130,8 @@ namespace Kino
             // common properties
             _material.SetFloat("_Intensity", _intensity);
             _material.SetFloat("_Contrast", 0.6f);
-            _material.SetFloat("_Radius", Mathf.Max(_radius, 0));
+            _material.SetFloat("_Radius", Mathf.Max(_radius, 1e-5f));
+            _material.SetFloat("_DepthFallOff", 100);
 
             // common keywords
             _material.shaderKeywords = null;
@@ -143,7 +144,8 @@ namespace Kino
             else if (_sampleCount == SampleCount.Medium)
                 _material.EnableKeyword("_COUNT_MEDIUM");
             else
-                _material.SetInt("_SampleCount", _sampleCountValue);
+                _material.SetInt("_SampleCount",
+                    Mathf.Clamp(_sampleCountValue, 1, 120));
 
             // use the combined single-pass shader when no filtering
             if (_noiseFilter == 0 && !_downsampling)
@@ -158,13 +160,13 @@ namespace Kino
                 var r8 = RenderTextureFormat.R8;
 
                 // estimate ao
-                var rtAO = RenderTexture.GetTemporary(tw / div, th / div, 0, r8);
-                Graphics.Blit(source, rtAO, _material, 1);
+                var rtMask = RenderTexture.GetTemporary(tw / div, th / div, 0, r8);
+                Graphics.Blit(source, rtMask, _material, 1);
 
                 if (_noiseFilter == 0)
                 {
                     // combine ao
-                    _material.SetTexture("_AOTex", rtAO);
+                    _material.SetTexture("_MaskTex", rtMask);
                     Graphics.Blit(source, destination, _material, 2);
                 }
                 else
@@ -174,18 +176,18 @@ namespace Kino
 
                     if (_noiseFilter == 2) _material.EnableKeyword("_BLUR_5TAP");
 
-                    _material.SetTexture("_BlurTex", rtAO);
+                    _material.SetTexture("_MaskTex", rtMask);
                     _material.SetVector("_BlurVector", Vector2.right);
                     Graphics.Blit(source, rtBlur, _material, 3);
 
-                    _material.SetTexture("_BlurTex", rtBlur);
+                    _material.SetTexture("_MaskTex", rtBlur);
                     _material.SetVector("_BlurVector", Vector2.up * div);
                     Graphics.Blit(source, destination, _material, 4);
 
                     RenderTexture.ReleaseTemporary(rtBlur);
                 }
 
-                RenderTexture.ReleaseTemporary(rtAO);
+                RenderTexture.ReleaseTemporary(rtMask);
             }
         }
 
