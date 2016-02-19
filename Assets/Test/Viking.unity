@@ -97,6 +97,7 @@ GameObject:
   - 92: {fileID: 63228466}
   - 124: {fileID: 63228465}
   - 81: {fileID: 63228464}
+  - 114: {fileID: 63228469}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -171,6 +172,25 @@ Transform:
   m_Children: []
   m_Father: {fileID: 174097556}
   m_RootOrder: 0
+--- !u!114 &63228469
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  m_GameObject: {fileID: 63228463}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d901ddf32d7c84ed4b0f84623ef3a7a0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _intensity: 1.20000005
+  _radius: .400000006
+  _estimatorType: 0
+  _sampleCount: 1
+  _sampleCountValue: 20
+  _noiseFilter: 2
+  _downsampling: 0
+  _shader: {fileID: 4800000, guid: 7541b5f18b1224a81927d8b1184b122b, type: 3}
 --- !u!1001 &103603070
 Prefab:
   m_ObjectHideFlags: 0
@@ -229,6 +249,7 @@ GameObject:
   serializedVersion: 4
   m_Component:
   - 4: {fileID: 174097556}
+  - 114: {fileID: 174097557}
   m_Layer: 0
   m_Name: Camera Pivot
   m_TagString: Untagged
@@ -249,6 +270,27 @@ Transform:
   - {fileID: 63228468}
   m_Father: {fileID: 0}
   m_RootOrder: 1
+--- !u!114 &174097557
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  m_GameObject: {fileID: 174097555}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 543ddbe12367a4899b011d43ef41f357, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _enablePositionNoise: 1
+  _enableRotationNoise: 1
+  _positionFrequency: .100000001
+  _rotationFrequency: .100000001
+  _positionAmplitude: .200000003
+  _rotationAmplitude: 10
+  _positionScale: {x: 1, y: 1, z: 1}
+  _rotationScale: {x: 1, y: 1, z: 0}
+  _positionFractalLevel: 3
+  _rotationFractalLevel: 3
 --- !u!1001 &310921822
 Prefab:
   m_ObjectHideFlags: 0
