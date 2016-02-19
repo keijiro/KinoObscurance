@@ -33,7 +33,7 @@ Shader "Hidden/Kino/Obscurance"
 
     #include "UnityCG.cginc"
 
-    #pragma multi_compile _METHOD_SIMPLE _METHOD_NORMAL
+    #pragma multi_compile _METHOD_ANGLE _METHOD_DISTANCE
     #pragma multi_compile _ _COUNT_LOW _COUNT_MEDIUM
     #pragma multi_compile _BLUR_3TAP _BLUR_5TAP
 
@@ -153,7 +153,7 @@ Shader "Hidden/Kino/Obscurance"
         float3 pos_o = ReconstructWorldPos(uv, depth_o, p11_22, p13_31);
 
         float ao = 0.0;
-#if _METHOD_NORMAL
+#if _METHOD_DISTANCE
         for (int s = 0; s < _SampleCount; s++)
         {
             // Sampling point

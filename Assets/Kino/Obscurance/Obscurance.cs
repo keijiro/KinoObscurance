@@ -50,16 +50,19 @@ namespace Kino
         [SerializeField]
         float _radius = 0.3f;
 
-        /// SSAO method
-        public Method method {
-            get { return _method; }
-            set { _method = value; }
+        /// Obscurance estimator type
+        public EstimatorType estimatorType {
+            get { return _estimatorType; }
+            set { _estimatorType = value; }
         }
 
-        public enum Method { Simple, Normal }
+        public enum EstimatorType {
+            AngleBased,
+            DistanceBased
+        }
 
         [SerializeField]
-        Method _method = Method.Normal;
+        EstimatorType _estimatorType = EstimatorType.DistanceBased;
 
         /// Sample count options
         public SampleCount sampleCount {
@@ -132,8 +135,8 @@ namespace Kino
             // common keywords
             _material.shaderKeywords = null;
 
-            if (_method == Method.Normal)
-                _material.EnableKeyword("_METHOD_NORMAL");
+            if (_estimatorType == EstimatorType.DistanceBased)
+                _material.EnableKeyword("_METHOD_DISTANCE");
 
             if (_sampleCount == SampleCount.Low)
                 _material.EnableKeyword("_COUNT_LOW");
@@ -154,7 +157,7 @@ namespace Kino
                 var th = source.height;
                 var r8 = RenderTextureFormat.R8;
 
-                // get ao image
+                // estimate ao
                 var rtAO = RenderTexture.GetTemporary(tw / div, th / div, 0, r8);
                 Graphics.Blit(source, rtAO, _material, 1);
 
@@ -181,6 +184,8 @@ namespace Kino
 
                     RenderTexture.ReleaseTemporary(rtBlur);
                 }
+
+                RenderTexture.ReleaseTemporary(rtAO);
             }
         }
 

@@ -32,7 +32,7 @@ namespace Kino
     {
         SerializedProperty _intensity;
         SerializedProperty _radius;
-        SerializedProperty _method;
+        SerializedProperty _estimatorType;
         SerializedProperty _sampleCount;
         SerializedProperty _sampleCountValue;
         SerializedProperty _noiseFilter;
@@ -44,7 +44,7 @@ namespace Kino
         {
             _intensity = serializedObject.FindProperty("_intensity");
             _radius = serializedObject.FindProperty("_radius");
-            _method = serializedObject.FindProperty("_method");
+            _estimatorType = serializedObject.FindProperty("_estimatorType");
             _sampleCount = serializedObject.FindProperty("_sampleCount");
             _sampleCountValue = serializedObject.FindProperty("_sampleCountValue");
             _noiseFilter = serializedObject.FindProperty("_noiseFilter");
@@ -57,7 +57,7 @@ namespace Kino
 
             EditorGUILayout.PropertyField(_intensity);
             EditorGUILayout.PropertyField(_radius);
-            EditorGUILayout.PropertyField(_method);
+            EditorGUILayout.PropertyField(_estimatorType);
             EditorGUILayout.PropertyField(_sampleCount);
 
             if (_sampleCount.hasMultipleDifferentValues ||
