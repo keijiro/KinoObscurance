@@ -183,14 +183,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d901ddf32d7c84ed4b0f84623ef3a7a0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _intensity: 1.20000005
-  _radius: .400000006
-  _estimatorType: 0
+  _intensity: 1.60000002
+  _radius: .200000003
+  _estimatorType: 1
   _sampleCount: 1
   _sampleCountValue: 20
   _noiseFilter: 2
   _downsampling: 0
-  _shader: {fileID: 4800000, guid: 7541b5f18b1224a81927d8b1184b122b, type: 3}
+  _aoShader: {fileID: 4800000, guid: 7541b5f18b1224a81927d8b1184b122b, type: 3}
 --- !u!1001 &103603070
 Prefab:
   m_ObjectHideFlags: 0
