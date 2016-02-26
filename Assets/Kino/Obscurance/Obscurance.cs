@@ -22,6 +22,7 @@
 // THE SOFTWARE.
 //
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Kino
 {
@@ -102,6 +103,15 @@ namespace Kino
         [SerializeField]
         bool _downsampling = false;
 
+        /// Only affects ambient lighting
+        public bool ambientOnly {
+            get { return _ambientOnly; }
+            set { _ambientOnly = value; }
+        }
+
+        [SerializeField]
+        bool _ambientOnly = false;
+
         #endregion
 
         #region Private Resources
@@ -132,6 +142,78 @@ namespace Kino
 
         #endregion
 
+        #region Command buffer
+
+        [SerializeField] Mesh _quadMesh;
+
+        CommandBuffer aoCommands {
+            get {
+                if (_aoCommands == null) {
+                    _aoCommands = new CommandBuffer();
+                    _aoCommands.name = "Kino.Obscurance";
+                }
+                return _aoCommands;
+            }
+        }
+
+        CommandBuffer _aoCommands;
+
+        void BuildCommandBuffer()
+        {
+            var cb = aoCommands;
+            cb.Clear();
+
+            var camera = GetComponent<Camera>();
+            var tw = camera.pixelWidth;
+            var th = camera.pixelHeight;
+
+            if (downsampling) {
+                tw /= 2;
+                th /= 2;
+            }
+
+            var m = aoMaterial;
+            var rtMask = Shader.PropertyToID("_ObscuranceTexture");
+            cb.GetTemporaryRT(
+                rtMask, tw, th, 0, FilterMode.Point, RenderTextureFormat.R8
+            );
+
+            // estimate ao
+            cb.Blit(null, rtMask, m, 0);
+
+            if (noiseFilter > 0)
+            {
+                var rtBlur = Shader.PropertyToID("_ObscuranceBlurTexture");
+                cb.GetTemporaryRT(
+                    rtBlur, tw, th, 0, FilterMode.Point, RenderTextureFormat.R8
+                );
+
+                // geometry-aware blur
+                for (var i = 0; i < noiseFilter; i++)
+                {
+                    cb.SetGlobalVector("_BlurVector", Vector2.right);
+                    cb.Blit(rtMask, rtBlur, m, 1);
+
+                    cb.SetGlobalVector("_BlurVector", Vector2.up);
+                    cb.Blit(rtBlur, rtMask, m, 1);
+                }
+
+                cb.ReleaseTemporaryRT(rtBlur);
+            }
+
+            // combine ao
+            var mrt = new RenderTargetIdentifier[] {
+                BuiltinRenderTextureType.GBuffer0,      // Albedo, Occ
+                BuiltinRenderTextureType.CameraTarget   // Ambient
+            };
+            cb.SetRenderTarget(mrt, BuiltinRenderTextureType.CameraTarget);
+            cb.DrawMesh(_quadMesh, Matrix4x4.identity, m, 0, 3);
+
+            cb.ReleaseTemporaryRT(rtMask);
+        }
+
+        #endregion
+
         #region Private methods
 
         RenderTexture GetTemporaryBuffer(int width, int height)
@@ -157,6 +239,11 @@ namespace Kino
             m.SetFloat("_DepthFallOff", 100);
             m.SetFloat("_TargetScale", downsampling ? 0.5f : 1);
 
+            // render path
+            var path = GetComponent<Camera>().actualRenderingPath;
+            if (path == RenderingPath.DeferredShading)
+                m.EnableKeyword("_TARGET_GBUFFER");
+
             // ao method
             if (estimatorType == EstimatorType.DistanceBased)
                 m.EnableKeyword("_METHOD_DISTANCE");
@@ -176,8 +263,9 @@ namespace Kino
 
         void OnEnable()
         {
-            var camera = GetComponent<Camera>();
-            camera.depthTextureMode = DepthTextureMode.DepthNormals;
+            if (!ambientOnly)
+                GetComponent<Camera>().depthTextureMode
+                    = DepthTextureMode.DepthNormals;
         }
 
         void OnDisable()
@@ -186,11 +274,38 @@ namespace Kino
                 DestroyImmediate(_aoMaterial);
 
             _aoMaterial = null;
+
+            if (_aoCommands != null)
+                GetComponent<Camera>().RemoveCommandBuffer(
+                    CameraEvent.BeforeReflections, _aoCommands
+                );
+
+            _aoCommands = null;
+        }
+
+        void Update()
+        {
+            if (ambientOnly) {
+                UpdateMaterialProperties();
+
+                if (_aoCommands == null)
+                {
+                    BuildCommandBuffer();
+                    GetComponent<Camera>().AddCommandBuffer(
+                        CameraEvent.BeforeReflections, aoCommands
+                    );
+                }
+            }
         }
 
         [ImageEffectOpaque]
         void OnRenderImage(RenderTexture source, RenderTexture destination)
         {
+            if (ambientOnly) {
+                Graphics.Blit(source, destination);
+                return;
+            }
+
             UpdateMaterialProperties();
 
             var tw = source.width;

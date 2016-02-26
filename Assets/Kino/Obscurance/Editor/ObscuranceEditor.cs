@@ -37,6 +37,7 @@ namespace Kino
         SerializedProperty _sampleCountValue;
         SerializedProperty _noiseFilter;
         SerializedProperty _downsampling;
+        SerializedProperty _ambientOnly;
 
         static GUIContent _textValue = new GUIContent("Value");
 
@@ -49,6 +50,7 @@ namespace Kino
             _sampleCountValue = serializedObject.FindProperty("_sampleCountValue");
             _noiseFilter = serializedObject.FindProperty("_noiseFilter");
             _downsampling = serializedObject.FindProperty("_downsampling");
+            _ambientOnly = serializedObject.FindProperty("_ambientOnly");
         }
 
         public override void OnInspectorGUI()
@@ -70,6 +72,7 @@ namespace Kino
 
             EditorGUILayout.PropertyField(_noiseFilter);
             EditorGUILayout.PropertyField(_downsampling);
+            EditorGUILayout.PropertyField(_ambientOnly);
 
             serializedObject.ApplyModifiedProperties();
         }
