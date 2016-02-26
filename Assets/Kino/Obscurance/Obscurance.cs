@@ -88,7 +88,10 @@ namespace Kino
         /// Noise filter
         public int noiseFilter {
             get { return _noiseFilter; }
-            set { _noiseFilter = value; }
+            set {
+                _noiseFilter = value;
+                _needsRebuildCommandBuffer = true;
+            }
         }
 
         [SerializeField, Range(0, 2)]
@@ -97,7 +100,10 @@ namespace Kino
         /// Downsampling (half-resolution mode)
         public bool downsampling {
             get { return _downsampling; }
-            set { _downsampling = value; }
+            set {
+                _downsampling = value;
+                _needsRebuildCommandBuffer = true;
+            }
         }
 
         [SerializeField]
@@ -106,11 +112,20 @@ namespace Kino
         /// Only affects ambient lighting
         public bool ambientOnly {
             get { return _ambientOnly; }
-            set { _ambientOnly = value; }
+            set {
+                _ambientOnly = value;
+                _needsRebuildCommandBuffer = true;
+            }
         }
 
         [SerializeField]
         bool _ambientOnly = false;
+
+        public bool needsRebuildCommandBuffer {
+            set { _needsRebuildCommandBuffer |= value; }
+        }
+
+        bool _needsRebuildCommandBuffer = true;
 
         #endregion
 
@@ -175,7 +190,7 @@ namespace Kino
             var m = aoMaterial;
             var rtMask = Shader.PropertyToID("_ObscuranceTexture");
             cb.GetTemporaryRT(
-                rtMask, tw, th, 0, FilterMode.Point, RenderTextureFormat.R8
+                rtMask, tw, th, 0, FilterMode.Bilinear, RenderTextureFormat.R8
             );
 
             // estimate ao
@@ -185,7 +200,7 @@ namespace Kino
             {
                 var rtBlur = Shader.PropertyToID("_ObscuranceBlurTexture");
                 cb.GetTemporaryRT(
-                    rtBlur, tw, th, 0, FilterMode.Point, RenderTextureFormat.R8
+                    rtBlur, tw, th, 0, FilterMode.Bilinear, RenderTextureFormat.R8
                 );
 
                 // geometry-aware blur
@@ -263,9 +278,14 @@ namespace Kino
 
         void OnEnable()
         {
-            if (!ambientOnly)
-                GetComponent<Camera>().depthTextureMode
-                    = DepthTextureMode.DepthNormals;
+            var camera = GetComponent<Camera>();
+
+            if (ambientOnly)
+                camera.AddCommandBuffer(
+                    CameraEvent.BeforeReflections, aoCommands
+                );
+            else
+                camera.depthTextureMode = DepthTextureMode.DepthNormals;
         }
 
         void OnDisable()
@@ -286,15 +306,8 @@ namespace Kino
         void Update()
         {
             if (ambientOnly) {
+                if (_needsRebuildCommandBuffer) BuildCommandBuffer();
                 UpdateMaterialProperties();
-
-                if (_aoCommands == null)
-                {
-                    BuildCommandBuffer();
-                    GetComponent<Camera>().AddCommandBuffer(
-                        CameraEvent.BeforeReflections, aoCommands
-                    );
-                }
             }
         }
 

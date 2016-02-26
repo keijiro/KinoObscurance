@@ -70,9 +70,15 @@ namespace Kino
                 EditorGUI.indentLevel--;
             }
 
+            EditorGUI.BeginChangeCheck();
+
             EditorGUILayout.PropertyField(_noiseFilter);
             EditorGUILayout.PropertyField(_downsampling);
             EditorGUILayout.PropertyField(_ambientOnly);
+
+            if (EditorGUI.EndChangeCheck())
+                foreach (Obscurance o in targets)
+                    o.needsRebuildCommandBuffer = true;
 
             serializedObject.ApplyModifiedProperties();
         }
