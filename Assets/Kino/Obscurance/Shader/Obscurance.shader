@@ -314,7 +314,7 @@ Shader "Hidden/Kino/Obscurance"
         return half4(SeparableBlur(_MainTex, i.uv, delta), 0);
     }
 
-    // Pass 2: combiner
+    // Pass 2: combiner for the forward mode
     half4 frag_combine(v2f_img i) : SV_Target
     {
         half4 src = tex2D(_MainTex, i.uv);
@@ -322,7 +322,7 @@ Shader "Hidden/Kino/Obscurance"
         return half4(CombineObscurance(src.rgb, mask), src.a);
     }
 
-    // vertex shader for mrt blitting
+    // Pass 3: combiner for the ambient-only mode
     v2f_img vert_gbuffer(appdata_img v)
     {
         v2f_img o;
