@@ -225,7 +225,7 @@ namespace Kino
             }
 
             // combine ao
-            m.SetTexture("_MaskTex", rtMask);
+            m.SetTexture("_ObscuranceTexture", rtMask);
             Graphics.Blit(source, destination, m, 2);
 
             ReleaseTemporaryBuffer(rtMask);

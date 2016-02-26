@@ -26,7 +26,6 @@ Shader "Hidden/Kino/Obscurance"
     Properties
     {
         _MainTex("", 2D) = ""{}
-        _MaskTex("", 2D) = ""{}
     }
     CGINCLUDE
 
@@ -38,13 +37,13 @@ Shader "Hidden/Kino/Obscurance"
     // sample count (reconfigurable when no keyword is given)
     #pragma multi_compile _ _COUNT_LOW _COUNT_MEDIUM
 
-    sampler2D _MainTex;
-    sampler2D _MaskTex;
-
-    float4 _MainTex_TexelSize;
-    float4 _MaskTex_TexelSize;
-
+    // global shader properties
     sampler2D _CameraDepthNormalsTexture;
+    sampler2D _ObscuranceTexture;
+
+    // material shader properties
+    sampler2D _MainTex;
+    float4 _MainTex_TexelSize;
 
     half _Intensity;
     half _Contrast;
@@ -296,7 +295,7 @@ Shader "Hidden/Kino/Obscurance"
     half4 frag_combine(v2f_img i) : SV_Target
     {
         half4 src = tex2D(_MainTex, i.uv);
-        half mask = tex2D(_MaskTex, i.uv);
+        half mask = tex2D(_ObscuranceTexture, i.uv);
         return half4(CombineObscurance(src.rgb, mask), src.a);
     }
 
