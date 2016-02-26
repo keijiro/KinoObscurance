@@ -168,10 +168,6 @@ namespace Kino
                 m.EnableKeyword("_COUNT_MEDIUM");
             else
                 m.SetInt("_SampleCount", sampleCountValue);
-
-            // noise reduction
-            if (noiseFilter == 2)
-                m.EnableKeyword("_BLUR_5TAP");
         }
 
         #endregion
@@ -197,62 +193,42 @@ namespace Kino
         {
             UpdateMaterialProperties();
 
-            // use the combined single-pass shader when no filtering
-            if (noiseFilter == 0 && !downsampling)
-            {
-                Graphics.Blit(source, destination, aoMaterial, 0);
+            var tw = source.width;
+            var th = source.height;
+
+            if (downsampling) {
+                tw /= 2;
+                th /= 2;
             }
-            else
+
+            var m = aoMaterial;
+            var rtMask = GetTemporaryBuffer(tw, th);
+
+            // estimate ao
+            Graphics.Blit(null, rtMask, m, 0);
+
+            if (noiseFilter > 0)
             {
-                var m = aoMaterial;
-                var tw = source.width;
-                var th = source.height;
-                var div = downsampling ? 2 : 1;
+                var rtBlur = GetTemporaryBuffer(tw, th);
 
-                // estimate ao
-                var rtMask = GetTemporaryBuffer(tw / div, th / div);
-                Graphics.Blit(source, rtMask, m, 1);
-
-                if (noiseFilter == 0)
+                // geometry-aware blur
+                for (var i = 0; i < noiseFilter; i++)
                 {
-                    // combine ao
-                    m.SetTexture("_MaskTex", rtMask);
-                    Graphics.Blit(source, destination, m, 2);
-                }
-                else
-                {
-                    // apply the separable blur filter
-                    var rtBlur = GetTemporaryBuffer(tw / div, th / div);
-
-                    // 1st blur pass
-                    m.SetTexture("_MaskTex", rtMask);
                     m.SetVector("_BlurVector", Vector2.right);
-                    Graphics.Blit(source, rtBlur, m, 3);
+                    Graphics.Blit(rtMask, rtBlur, m, 1);
 
-                    if (downsampling)
-                    {
-                        // 2nd blur pass
-                        m.SetTexture("_MaskTex", rtBlur);
-                        m.SetVector("_BlurVector", Vector2.up);
-                        Graphics.Blit(source, rtMask, m, 3);
-
-                        // combine ao
-                        m.SetTexture("_MaskTex", rtMask);
-                        Graphics.Blit(source, destination, m, 2);
-                    }
-                    else
-                    {
-                        // 2nd blur and combiner in a single pass
-                        m.SetTexture("_MaskTex", rtBlur);
-                        m.SetVector("_BlurVector", Vector2.up);
-                        Graphics.Blit(source, destination, m, 4);
-                    }
-
-                    ReleaseTemporaryBuffer(rtBlur);
+                    m.SetVector("_BlurVector", Vector2.up);
+                    Graphics.Blit(rtBlur, rtMask, m, 1);
                 }
 
-                ReleaseTemporaryBuffer(rtMask);
+                ReleaseTemporaryBuffer(rtBlur);
             }
+
+            // combine ao
+            m.SetTexture("_MaskTex", rtMask);
+            Graphics.Blit(source, destination, m, 2);
+
+            ReleaseTemporaryBuffer(rtMask);
         }
 
         #endregion

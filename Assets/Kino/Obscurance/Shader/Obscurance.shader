@@ -38,9 +38,6 @@ Shader "Hidden/Kino/Obscurance"
     // sample count (reconfigurable when no keyword is given)
     #pragma multi_compile _ _COUNT_LOW _COUNT_MEDIUM
 
-    // noise filter quality
-    #pragma multi_compile _BLUR_3TAP _BLUR_5TAP
-
     sampler2D _MainTex;
     sampler2D _MaskTex;
 
@@ -262,23 +259,6 @@ Shader "Hidden/Kino/Obscurance"
     {
         half3 n0 = SampleNormal(uv);
 
-#ifdef _BLUR_3TAP
-
-        half2 uv1 = uv - delta;
-        half2 uv2 = uv + delta;
-
-        half w0 = 2;
-        half w1 = CompareNormal(n0, SampleNormal(uv1));
-        half w2 = CompareNormal(n0, SampleNormal(uv2));
-
-        half3 s = tex2D(tex, uv) * w0;
-        s += tex2D(tex, uv1) * w1;
-        s += tex2D(tex, uv2) * w2;
-
-        return s / (w0 + w1 + w2);
-
-#else // _BLUR_5TAP
-
         half2 uv1 = uv - delta;
         half2 uv2 = uv + delta;
         half2 uv3 = uv - delta * 2;
@@ -297,21 +277,19 @@ Shader "Hidden/Kino/Obscurance"
         s += tex2D(tex, uv4) * w4;
 
         return s / (w0 + w1 + w2 + w3 + w4);
-#endif
     }
 
-    // Pass 0: single pass shader (no additional filtering)
-    half4 frag_ao_combined(v2f_img i) : SV_Target
-    {
-        half4 src = tex2D(_MainTex, i.uv);
-        half ao = EstimateObscurance(i.uv);
-        return half4(CombineObscurance(src.rgb, ao), src.a);
-    }
-
-    // Pass 1: obscurance estimation pass
+    // Pass 0: obscurance estimation
     half4 frag_ao(v2f_img i) : SV_Target
     {
         return EstimateObscurance(i.uv);
+    }
+
+    // Pass1: geometry-aware blur
+    half4 frag_blur(v2f_img i) : SV_Target
+    {
+        float2 delta = _MainTex_TexelSize.xy * _BlurVector;
+        return half4(SeparableBlur(_MainTex, i.uv, delta), 0);
     }
 
     // Pass 2: combiner
@@ -319,22 +297,6 @@ Shader "Hidden/Kino/Obscurance"
     {
         half4 src = tex2D(_MainTex, i.uv);
         half mask = tex2D(_MaskTex, i.uv);
-        return half4(CombineObscurance(src.rgb, mask), src.a);
-    }
-
-    // Pass3: separable blur filter
-    half4 frag_blur(v2f_img i) : SV_Target
-    {
-        float2 delta = _MaskTex_TexelSize.xy * _BlurVector;
-        return half4(SeparableBlur(_MaskTex, i.uv, delta), 0);
-    }
-
-    // Pass 4: separable blur + combiner
-    half4 frag_blur_combine(v2f_img i) : SV_Target
-    {
-        half4 src = tex2D(_MainTex, i.uv);
-        float2 delta = _MaskTex_TexelSize.xy * _BlurVector;
-        half mask = SeparableBlur(_MaskTex, i.uv, delta);
         return half4(CombineObscurance(src.rgb, mask), src.a);
     }
 
@@ -346,25 +308,7 @@ Shader "Hidden/Kino/Obscurance"
             ZTest Always Cull Off ZWrite Off
             CGPROGRAM
             #pragma vertex vert_img
-            #pragma fragment frag_ao_combined
-            #pragma target 3.0
-            ENDCG
-        }
-        Pass
-        {
-            ZTest Always Cull Off ZWrite Off
-            CGPROGRAM
-            #pragma vertex vert_img
             #pragma fragment frag_ao
-            #pragma target 3.0
-            ENDCG
-        }
-        Pass
-        {
-            ZTest Always Cull Off ZWrite Off
-            CGPROGRAM
-            #pragma vertex vert_img
-            #pragma fragment frag_combine
             #pragma target 3.0
             ENDCG
         }
@@ -382,7 +326,7 @@ Shader "Hidden/Kino/Obscurance"
             ZTest Always Cull Off ZWrite Off
             CGPROGRAM
             #pragma vertex vert_img
-            #pragma fragment frag_blur_combine
+            #pragma fragment frag_combine
             #pragma target 3.0
             ENDCG
         }
