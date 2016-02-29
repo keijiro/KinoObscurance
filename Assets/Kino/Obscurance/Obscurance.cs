@@ -29,7 +29,7 @@ namespace Kino
     [ExecuteInEditMode]
     [RequireComponent(typeof(Camera))]
     [AddComponentMenu("Kino Image Effects/Obscurance")]
-    public class Obscurance : MonoBehaviour
+    public partial class Obscurance : MonoBehaviour
     {
         #region Public Properties
 
@@ -88,10 +88,7 @@ namespace Kino
         /// Noise filter
         public int noiseFilter {
             get { return _noiseFilter; }
-            set {
-                _noiseFilter = value;
-                _needsRebuildCommandBuffer = true;
-            }
+            set { _noiseFilter = value; }
         }
 
         [SerializeField, Range(0, 2)]
@@ -100,10 +97,7 @@ namespace Kino
         /// Downsampling (half-resolution mode)
         public bool downsampling {
             get { return _downsampling; }
-            set {
-                _downsampling = value;
-                _needsRebuildCommandBuffer = true;
-            }
+            set { _downsampling = value; }
         }
 
         [SerializeField]
@@ -121,23 +115,11 @@ namespace Kino
                 }
                 return false;
             }
-            set {
-                _ambientOnly = value;
-                _needsRebuildCommandBuffer = true;
-            }
+            set { _ambientOnly = value; }
         }
 
         [SerializeField]
         bool _ambientOnly = false;
-
-        /// Command buffer rebuild request (only available on Editor)
-        #if UNITY_EDITOR
-        public bool needsRebuildCommandBuffer {
-            set { _needsRebuildCommandBuffer |= value; }
-        }
-        #endif
-
-        bool _needsRebuildCommandBuffer = true;
 
         #endregion
 
@@ -145,7 +127,6 @@ namespace Kino
 
         // Quad mesh for blitting (reference to build-in asset)
         [SerializeField] Mesh _quadMesh;
-
 
         // AO shader material
         Material aoMaterial {
@@ -179,6 +160,9 @@ namespace Kino
         Camera targetCamera {
             get { return GetComponent<Camera>(); }
         }
+
+        // Property observer
+        PropertyObserver propertyObserver { get; set; }
 
         #endregion
 
@@ -352,7 +336,7 @@ namespace Kino
 
         void Update()
         {
-            if (_needsRebuildCommandBuffer)
+            if (propertyObserver.CheckNeedsReset(this, targetCamera))
             {
                 // Reinitialize all the resources. Not efficient but just works.
                 OnDisable();
@@ -365,7 +349,7 @@ namespace Kino
                     BuildAOCommands();
                 }
 
-                _needsRebuildCommandBuffer = false;
+                propertyObserver.Update(this, targetCamera);
             }
 
             // Update the material properties (later used in the AO commands).
