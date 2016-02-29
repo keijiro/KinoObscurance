@@ -31,8 +31,8 @@ Shader "Hidden/Kino/Obscurance"
 
     #include "UnityCG.cginc"
 
-    // render target type (color buffer/g-buffer)
-    #pragma multi_compile _TARGET_FORWARD _TARGET_GBUFFER
+    // source type (CameraDepthNormals or G-buffer)
+    #pragma multi_compile _SOURCE_DEPTHNORMALS _SOURCE_GBUFFER
 
     // estimator type selection
     #pragma multi_compile _METHOD_ANGLE _METHOD_DISTANCE
@@ -42,7 +42,7 @@ Shader "Hidden/Kino/Obscurance"
 
     // global shader properties
     sampler2D _ObscuranceTexture;
-    #if _TARGET_GBUFFER
+    #if _SOURCE_GBUFFER
     sampler2D _CameraGBufferTexture2;
     sampler2D _CameraDepthTexture;
     float4x4 _WorldToCamera;
@@ -94,7 +94,7 @@ Shader "Hidden/Kino/Obscurance"
     // Sampling functions with CameraDepthNormalTexture
     float SampleDepth(float2 uv)
     {
-    #if _TARGET_GBUFFER
+    #if _SOURCE_GBUFFER
         return LinearEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv));
     #else
         float4 cdn = tex2D(_CameraDepthNormalsTexture, uv);
@@ -104,7 +104,7 @@ Shader "Hidden/Kino/Obscurance"
 
     float3 SampleNormal(float2 uv)
     {
-    #if _TARGET_GBUFFER
+    #if _SOURCE_GBUFFER
         float3 norm = tex2D(_CameraGBufferTexture2, uv).xyz * 2 - 1;
         return mul((float3x3)_WorldToCamera, norm);
     #else
@@ -117,7 +117,7 @@ Shader "Hidden/Kino/Obscurance"
 
     float SampleDepthNormal(float2 uv, out float3 normal)
     {
-    #if _TARGET_GBUFFER
+    #if _SOURCE_GBUFFER
         normal = SampleNormal(uv);
         return SampleDepth(uv);
     #else
@@ -270,7 +270,7 @@ Shader "Hidden/Kino/Obscurance"
         #endif
 
         // apply the depth fall-off
-        ao *= 1.0 - depth_o / _DepthFallOff;
+        ao *= max(0, 1.0 - depth_o / _DepthFallOff);
 
         // apply other parameters
         return pow(ao * _Intensity / _SampleCount, _Contrast);

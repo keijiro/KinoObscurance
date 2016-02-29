@@ -108,12 +108,7 @@ namespace Kino
             get {
                 // Only enabled with the deferred shading rendering path
                 // and HDR rendering.
-                if (_ambientOnly && targetCamera.hdr)
-                {
-                    var path = targetCamera.actualRenderingPath;
-                    return path == RenderingPath.DeferredShading;
-                }
-                return false;
+                return _ambientOnly && targetCamera.hdr && IsGBufferAvailable;
             }
             set { _ambientOnly = value; }
         }
@@ -163,6 +158,14 @@ namespace Kino
 
         // Property observer
         PropertyObserver propertyObserver { get; set; }
+
+        // Check if the G-buffer is available
+        bool IsGBufferAvailable {
+            get {
+                var path = targetCamera.actualRenderingPath;
+                return path == RenderingPath.DeferredShading;
+            }
+        }
 
         #endregion
 
@@ -283,9 +286,9 @@ namespace Kino
             m.SetFloat("_DepthFallOff", 100);
             m.SetFloat("_TargetScale", downsampling ? 0.5f : 1);
 
-            // Render target (color buffer or G-buffer)
-            if (ambientOnly)
-                m.EnableKeyword("_TARGET_GBUFFER");
+            // AO source (CameraDepthNormals or G-buffer)
+            if (IsGBufferAvailable)
+                m.EnableKeyword("_SOURCE_GBUFFER");
 
             // AO method (angle based or distance based)
             if (estimatorType == EstimatorType.DistanceBased)
