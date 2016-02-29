@@ -111,7 +111,16 @@ namespace Kino
 
         /// Only affects ambient lighting
         public bool ambientOnly {
-            get { return _ambientOnly; }
+            get {
+                // Only enabled with the deferred shading rendering path
+                // and HDR rendering.
+                if (_ambientOnly && targetCamera.hdr)
+                {
+                    var path = targetCamera.actualRenderingPath;
+                    return path == RenderingPath.DeferredShading;
+                }
+                return false;
+            }
             set {
                 _ambientOnly = value;
                 _needsRebuildCommandBuffer = true;
@@ -291,8 +300,7 @@ namespace Kino
             m.SetFloat("_TargetScale", downsampling ? 0.5f : 1);
 
             // Render target (color buffer or G-buffer)
-            var path = targetCamera.actualRenderingPath;
-            if (path == RenderingPath.DeferredShading)
+            if (ambientOnly)
                 m.EnableKeyword("_TARGET_GBUFFER");
 
             // AO method (angle based or distance based)
@@ -356,6 +364,8 @@ namespace Kino
                     aoCommands.Clear();
                     BuildAOCommands();
                 }
+
+                _needsRebuildCommandBuffer = false;
             }
 
             // Update the material properties (later used in the AO commands).
