@@ -189,6 +189,12 @@ Shader "Hidden/Kino/Obscurance"
         float3 norm_o;
         float depth_o = SampleDepthNormal(uv, norm_o);
 
+        #if _SOURCE_DEPTHNORMALS
+        // offset to avoid precision error
+        // (depth in the DepthNormals mode has only 16-bit precision)
+        depth_o -=_ProjectionParams.z / 65536;
+        #endif
+
         // early-out case
         // if (depth_o > kFallOffDist) return 0;
 

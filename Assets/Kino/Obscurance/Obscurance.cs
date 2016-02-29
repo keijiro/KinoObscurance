@@ -316,7 +316,7 @@ namespace Kino
 
             // Requires CameraDepthNormals when G-buffer is not available.
             if (!IsGBufferAvailable)
-                targetCamera.depthTextureMode = DepthTextureMode.DepthNormals;
+                targetCamera.depthTextureMode |= DepthTextureMode.DepthNormals;
         }
 
         void OnDisable()
