@@ -309,18 +309,14 @@ namespace Kino
 
         void OnEnable()
         {
-            if (ambientOnly)
-            {
-                // Register the command buffer for the ambient only mode.
-                targetCamera.AddCommandBuffer(
-                    CameraEvent.BeforeReflections, aoCommands
-                );
-            }
-            else
-            {
-                // Needs CameraDepthNormals texture for the forward mode.
+            // Register the command buffer for the ambient only mode.
+            if (ambientOnly) targetCamera.AddCommandBuffer(
+                CameraEvent.BeforeReflections, aoCommands
+            );
+
+            // Requires CameraDepthNormals when G-buffer is not available.
+            if (!IsGBufferAvailable)
                 targetCamera.depthTextureMode = DepthTextureMode.DepthNormals;
-            }
         }
 
         void OnDisable()
