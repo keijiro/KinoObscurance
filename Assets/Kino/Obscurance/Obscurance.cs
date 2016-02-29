@@ -22,13 +22,14 @@
 // THE SOFTWARE.
 //
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Kino
 {
     [ExecuteInEditMode]
     [RequireComponent(typeof(Camera))]
     [AddComponentMenu("Kino Image Effects/Obscurance")]
-    public class Obscurance : MonoBehaviour
+    public partial class Obscurance : MonoBehaviour
     {
         #region Public Properties
 
@@ -102,66 +103,195 @@ namespace Kino
         [SerializeField]
         bool _downsampling = false;
 
-        #endregion
-
-        #region Private Resources
-
-        // ao shader
-        Shader aoShader {
+        /// Only affects ambient lighting
+        public bool ambientOnly {
             get {
-                // not using the reference value _aoShader
-                // because it's not prepared on object initialization.
-                return Shader.Find("Hidden/Kino/Obscurance");
+                // Only enabled with the deferred shading rendering path
+                // and HDR rendering.
+                if (_ambientOnly && targetCamera.hdr)
+                {
+                    var path = targetCamera.actualRenderingPath;
+                    return path == RenderingPath.DeferredShading;
+                }
+                return false;
             }
+            set { _ambientOnly = value; }
         }
 
-        [SerializeField] Shader _aoShader;
+        [SerializeField]
+        bool _ambientOnly = false;
 
-        // material for the ao shader
+        #endregion
+
+        #region Private Properties
+
+        // Quad mesh for blitting (reference to build-in asset)
+        [SerializeField] Mesh _quadMesh;
+
+        // AO shader material
         Material aoMaterial {
             get {
                 if (_aoMaterial == null) {
-                    _aoMaterial = new Material(aoShader);
+                    var shader = Shader.Find("Hidden/Kino/Obscurance");
+                    _aoMaterial = new Material(shader);
                     _aoMaterial.hideFlags = HideFlags.DontSave;
                 }
                 return _aoMaterial;
             }
         }
 
+        [SerializeField] Shader _aoShader;
         Material _aoMaterial;
+
+        // Command buffer for the AO pass
+        CommandBuffer aoCommands {
+            get {
+                if (_aoCommands == null) {
+                    _aoCommands = new CommandBuffer();
+                    _aoCommands.name = "Kino.Obscurance";
+                }
+                return _aoCommands;
+            }
+        }
+
+        CommandBuffer _aoCommands;
+
+        // Target camera
+        Camera targetCamera {
+            get { return GetComponent<Camera>(); }
+        }
+
+        // Property observer
+        PropertyObserver propertyObserver { get; set; }
 
         #endregion
 
-        #region Private methods
+        #region Effect Pass
 
-        RenderTexture GetTemporaryBuffer(int width, int height)
+        // Build the AO pass commands (used in the ambient-only mode).
+        void BuildAOCommands()
         {
-            return RenderTexture.GetTemporary
-                (width, height, 0, RenderTextureFormat.R8);
+            var cb = aoCommands;
+
+            var tw = targetCamera.pixelWidth;
+            var th = targetCamera.pixelHeight;
+            var format = RenderTextureFormat.R8;
+
+            if (downsampling) {
+                tw /= 2;
+                th /= 2;
+            }
+
+            // AO buffer
+            var m = aoMaterial;
+            var rtMask = Shader.PropertyToID("_ObscuranceTexture");
+            cb.GetTemporaryRT(
+                rtMask, tw, th, 0, FilterMode.Bilinear, format
+            );
+
+            // AO estimation
+            cb.Blit(null, rtMask, m, 0);
+
+            if (noiseFilter > 0)
+            {
+                // Blur buffer
+                var rtBlur = Shader.PropertyToID("_ObscuranceBlurTexture");
+                cb.GetTemporaryRT(
+                    rtBlur, tw, th, 0, FilterMode.Bilinear, format
+                );
+
+                // Geometry-aware blur
+                for (var i = 0; i < noiseFilter; i++)
+                {
+                    cb.SetGlobalVector("_BlurVector", Vector2.right);
+                    cb.Blit(rtMask, rtBlur, m, 1);
+
+                    cb.SetGlobalVector("_BlurVector", Vector2.up);
+                    cb.Blit(rtBlur, rtMask, m, 1);
+                }
+
+                cb.ReleaseTemporaryRT(rtBlur);
+            }
+
+            // Combine AO to the G-buffer.
+            var mrt = new RenderTargetIdentifier[] {
+                BuiltinRenderTextureType.GBuffer0,      // Albedo, Occ
+                BuiltinRenderTextureType.CameraTarget   // Ambient
+            };
+            cb.SetRenderTarget(mrt, BuiltinRenderTextureType.CameraTarget);
+            cb.DrawMesh(_quadMesh, Matrix4x4.identity, m, 0, 3);
+
+            cb.ReleaseTemporaryRT(rtMask);
         }
 
-        void ReleaseTemporaryBuffer(RenderTexture rt)
+        // Execute the AO pass immediately (used in the forward mode).
+        void ExecuteAOPass(RenderTexture source, RenderTexture destination)
         {
-            RenderTexture.ReleaseTemporary(rt);
+            var tw = source.width;
+            var th = source.height;
+
+            if (downsampling) {
+                tw /= 2;
+                th /= 2;
+            }
+
+            // AO buffer
+            var m = aoMaterial;
+            var rtMask = RenderTexture.GetTemporary(
+                tw, th, 0, RenderTextureFormat.R8
+            );
+
+            // AO estimation
+            Graphics.Blit(null, rtMask, m, 0);
+
+            if (noiseFilter > 0)
+            {
+                // Blur buffer
+                var rtBlur = RenderTexture.GetTemporary(
+                    tw, th, 0, RenderTextureFormat.R8
+                );
+
+                // Geometry-aware blur
+                for (var i = 0; i < noiseFilter; i++)
+                {
+                    m.SetVector("_BlurVector", Vector2.right);
+                    Graphics.Blit(rtMask, rtBlur, m, 1);
+
+                    m.SetVector("_BlurVector", Vector2.up);
+                    Graphics.Blit(rtBlur, rtMask, m, 1);
+                }
+
+                RenderTexture.ReleaseTemporary(rtBlur);
+            }
+
+            // Combine AO with the source.
+            m.SetTexture("_ObscuranceTexture", rtMask);
+            Graphics.Blit(source, destination, m, 2);
+
+            RenderTexture.ReleaseTemporary(rtMask);
         }
 
+        // Update the common material properties.
         void UpdateMaterialProperties()
         {
             var m = aoMaterial;
             m.shaderKeywords = null;
 
-            // common properties
             m.SetFloat("_Intensity", intensity);
             m.SetFloat("_Contrast", 0.6f);
             m.SetFloat("_Radius", radius);
             m.SetFloat("_DepthFallOff", 100);
             m.SetFloat("_TargetScale", downsampling ? 0.5f : 1);
 
-            // ao method
+            // Render target (color buffer or G-buffer)
+            if (ambientOnly)
+                m.EnableKeyword("_TARGET_GBUFFER");
+
+            // AO method (angle based or distance based)
             if (estimatorType == EstimatorType.DistanceBased)
                 m.EnableKeyword("_METHOD_DISTANCE");
 
-            // sample count
+            // Sample count
             if (sampleCount == SampleCount.Low)
                 m.EnableKeyword("_COUNT_LOW");
             else if (sampleCount == SampleCount.Medium)
@@ -176,59 +306,70 @@ namespace Kino
 
         void OnEnable()
         {
-            var camera = GetComponent<Camera>();
-            camera.depthTextureMode = DepthTextureMode.DepthNormals;
+            if (ambientOnly)
+            {
+                // Register the command buffer for the ambient only mode.
+                targetCamera.AddCommandBuffer(
+                    CameraEvent.BeforeReflections, aoCommands
+                );
+            }
+            else
+            {
+                // Needs CameraDepthNormals texture for the forward mode.
+                targetCamera.depthTextureMode = DepthTextureMode.DepthNormals;
+            }
         }
 
         void OnDisable()
         {
-            if (_aoMaterial != null)
-                DestroyImmediate(_aoMaterial);
+            // Destroy all the temporary resources.
+            if (_aoMaterial != null) DestroyImmediate(_aoMaterial);
 
             _aoMaterial = null;
+
+            if (_aoCommands != null) targetCamera.RemoveCommandBuffer(
+                CameraEvent.BeforeReflections, _aoCommands
+            );
+
+            _aoCommands = null;
+        }
+
+        void Update()
+        {
+            if (propertyObserver.CheckNeedsReset(this, targetCamera))
+            {
+                // Reinitialize all the resources. Not efficient but just works.
+                OnDisable();
+                OnEnable();
+
+                if (ambientOnly)
+                {
+                    // Build the command buffer for the ambient only mode.
+                    aoCommands.Clear();
+                    BuildAOCommands();
+                }
+
+                propertyObserver.Update(this, targetCamera);
+            }
+
+            // Update the material properties (later used in the AO commands).
+            if (ambientOnly) UpdateMaterialProperties();
         }
 
         [ImageEffectOpaque]
         void OnRenderImage(RenderTexture source, RenderTexture destination)
         {
-            UpdateMaterialProperties();
-
-            var tw = source.width;
-            var th = source.height;
-
-            if (downsampling) {
-                tw /= 2;
-                th /= 2;
-            }
-
-            var m = aoMaterial;
-            var rtMask = GetTemporaryBuffer(tw, th);
-
-            // estimate ao
-            Graphics.Blit(null, rtMask, m, 0);
-
-            if (noiseFilter > 0)
+            if (ambientOnly)
             {
-                var rtBlur = GetTemporaryBuffer(tw, th);
-
-                // geometry-aware blur
-                for (var i = 0; i < noiseFilter; i++)
-                {
-                    m.SetVector("_BlurVector", Vector2.right);
-                    Graphics.Blit(rtMask, rtBlur, m, 1);
-
-                    m.SetVector("_BlurVector", Vector2.up);
-                    Graphics.Blit(rtBlur, rtMask, m, 1);
-                }
-
-                ReleaseTemporaryBuffer(rtBlur);
+                // Do nothing in the ambient only mode.
+                Graphics.Blit(source, destination);
             }
-
-            // combine ao
-            m.SetTexture("_ObscuranceTexture", rtMask);
-            Graphics.Blit(source, destination, m, 2);
-
-            ReleaseTemporaryBuffer(rtMask);
+            else
+            {
+                // Execute the AO pass.
+                UpdateMaterialProperties();
+                ExecuteAOPass(source, destination);
+            }
         }
 
         #endregion

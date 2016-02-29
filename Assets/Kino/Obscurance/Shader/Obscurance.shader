@@ -31,6 +31,9 @@ Shader "Hidden/Kino/Obscurance"
 
     #include "UnityCG.cginc"
 
+    // render target type (color buffer/g-buffer)
+    #pragma multi_compile _TARGET_FORWARD _TARGET_GBUFFER
+
     // estimator type selection
     #pragma multi_compile _METHOD_ANGLE _METHOD_DISTANCE
 
@@ -38,8 +41,14 @@ Shader "Hidden/Kino/Obscurance"
     #pragma multi_compile _ _COUNT_LOW _COUNT_MEDIUM
 
     // global shader properties
-    sampler2D _CameraDepthNormalsTexture;
     sampler2D _ObscuranceTexture;
+    #if _TARGET_GBUFFER
+    sampler2D _CameraGBufferTexture2;
+    sampler2D _CameraDepthTexture;
+    float4x4 _WorldToCamera;
+    #else
+    sampler2D _CameraDepthNormalsTexture;
+    #endif
 
     // material shader properties
     sampler2D _MainTex;
@@ -85,24 +94,38 @@ Shader "Hidden/Kino/Obscurance"
     // Sampling functions with CameraDepthNormalTexture
     float SampleDepth(float2 uv)
     {
+    #if _TARGET_GBUFFER
+        return LinearEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv));
+    #else
         float4 cdn = tex2D(_CameraDepthNormalsTexture, uv);
         return DecodeFloatRG(cdn.zw) * _ProjectionParams.z;
+    #endif
     }
 
     float3 SampleNormal(float2 uv)
     {
+    #if _TARGET_GBUFFER
+        float3 norm = tex2D(_CameraGBufferTexture2, uv).xyz * 2 - 1;
+        return mul((float3x3)_WorldToCamera, norm);
+    #else
         float4 cdn = tex2D(_CameraDepthNormalsTexture, uv);
         float3 normal = DecodeViewNormalStereo(cdn);
         normal.z *= -1;
         return normal;
+    #endif
     }
 
     float SampleDepthNormal(float2 uv, out float3 normal)
     {
+    #if _TARGET_GBUFFER
+        normal = SampleNormal(uv);
+        return SampleDepth(uv);
+    #else
         float4 cdn = tex2D(_CameraDepthNormalsTexture, uv);
         normal = DecodeViewNormalStereo(cdn);
         normal.z *= -1;
         return DecodeFloatRG(cdn.zw) * _ProjectionParams.z;
+    #endif
     }
 
     // Reconstruct a world space position from a pair of UV and depth
@@ -291,7 +314,7 @@ Shader "Hidden/Kino/Obscurance"
         return half4(SeparableBlur(_MainTex, i.uv, delta), 0);
     }
 
-    // Pass 2: combiner
+    // Pass 2: combiner for the forward mode
     half4 frag_combine(v2f_img i) : SV_Target
     {
         half4 src = tex2D(_MainTex, i.uv);
@@ -299,7 +322,32 @@ Shader "Hidden/Kino/Obscurance"
         return half4(CombineObscurance(src.rgb, mask), src.a);
     }
 
+    // Pass 3: combiner for the ambient-only mode
+    v2f_img vert_gbuffer(appdata_img v)
+    {
+        v2f_img o;
+        o.pos = v.vertex * float4(2, 2, 1, 1);
+        o.uv = v.texcoord;
+        return o;
+    }
+
+    struct OcclusionOutput
+    {
+        half4 gbuffer0 : COLOR0;
+        half4 gbuffer3 : COLOR1;
+    };
+
+    OcclusionOutput frag_gbuffer_combine(v2f_img i) : SV_Target
+    {
+        half ao = tex2D(_ObscuranceTexture, i.uv);
+        OcclusionOutput o;
+        o.gbuffer0 = half4(0, 0, 0, ao);
+        o.gbuffer3 = half4(ao, ao, ao, 0);
+        return o;
+    }
+
     ENDCG
+
     SubShader
     {
         Pass
@@ -326,6 +374,16 @@ Shader "Hidden/Kino/Obscurance"
             CGPROGRAM
             #pragma vertex vert_img
             #pragma fragment frag_combine
+            #pragma target 3.0
+            ENDCG
+        }
+        Pass
+        {
+            Blend Zero OneMinusSrcColor, Zero OneMinusSrcAlpha
+            ZTest Always Cull Off ZWrite Off
+            CGPROGRAM
+            #pragma vertex vert_gbuffer
+            #pragma fragment frag_gbuffer_combine
             #pragma target 3.0
             ENDCG
         }
