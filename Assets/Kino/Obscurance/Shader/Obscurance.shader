@@ -34,9 +34,6 @@ Shader "Hidden/Kino/Obscurance"
     // source type (CameraDepthNormals or G-buffer)
     #pragma multi_compile _SOURCE_DEPTHNORMALS _SOURCE_GBUFFER
 
-    // estimator type selection
-    #pragma multi_compile _METHOD_ANGLE _METHOD_DISTANCE
-
     // sample count (reconfigurable when no keyword is given)
     #pragma multi_compile _ _COUNT_LOW _COUNT_MEDIUM
 
@@ -147,21 +144,7 @@ Shader "Hidden/Kino/Obscurance"
         return lerp(src, 0, mask);
     }
 
-    #if _METHOD_ANGLE
-
-    // Sample point picker for the angle-based method
-    float2 PickSamplePoint(float2 uv, float index, float radius)
-    {
-        float gn = GradientNoise(uv * _ScreenParams.xy * _TargetScale);
-        float theta = (UVRandom(0, index) + gn) * UNITY_PI * 2;
-        // make them distributed between [eps, radius]
-        float l = lerp(0.01, radius, index / _SampleCount);
-        return CosSin(theta) * l;
-    }
-
-    #else // _METHOD_DISTANCE
-
-    // Sample point picker for the distance-based method
+    // Sample point picker
     float3 PickSamplePoint(float2 uv, float index)
     {
         // uniformaly distributed points on a unit sphere http://goo.gl/X2F1Ho
@@ -173,8 +156,6 @@ Shader "Hidden/Kino/Obscurance"
         float l = lerp(0.1, 1.0, pow(index / _SampleCount, 1.0 / 3)) * _Radius;
         return v * l;
     }
-
-    #endif
 
     // Obscurance estimator function
     float EstimateObscurance(float2 uv)
@@ -192,58 +173,12 @@ Shader "Hidden/Kino/Obscurance"
         // offset to avoid precision error
         // (depth in the DepthNormals mode has only 16-bit precision)
         depth_o -= _ProjectionParams.z / 65536;
-        #elif _METHOD_ANGLE
-        // offset for the angle-based method
-        depth_o -= 1e-5;
         #endif
 
         // reconstruct the view-space position
         float3 wpos_o = ReconstructWorldPos(uv, depth_o, p11_22, p13_31);
 
         float ao = 0.0;
-
-        #if _METHOD_ANGLE
-
-        // Angle-based estimator based on Mittring 2012 http://goo.gl/wPZrAA
-        for (int s = 0; s < _SampleCount / 2; s++)
-        {
-            // pair of sampling point
-            float2 v_s = PickSamplePoint(uv, s, 2 * _Radius / depth_o);
-            float2 uv_s1 = uv + v_s;
-            float2 uv_s2 = uv - v_s;
-
-            // fetch depth value
-            float depth_s1 = SampleDepth(uv_s1);
-            float depth_s2 = SampleDepth(uv_s2);
-
-            // world position
-            float3 wpos_s1 = ReconstructWorldPos(uv_s1, depth_s1, p11_22, p13_31);
-            float3 wpos_s2 = ReconstructWorldPos(uv_s2, depth_s2, p11_22, p13_31);
-
-            // vector towards the sampling points
-            float3 v_s1 = wpos_s1 - wpos_o;
-            float3 v_s2 = wpos_s2 - wpos_o;
-
-            // clip the vectors with the tangent plane
-            v_s1 = normalize(v_s1 - norm_o * min(0, dot(v_s1, norm_o)));
-            v_s2 = normalize(v_s2 - norm_o * min(0, dot(v_s1, norm_o)));
-
-            // get the angle between the vectors
-            float3 v_h = normalize(v_s1 + v_s2);
-            float op = asin(dot(v_s1, v_h)) * 4 / UNITY_PI;
-
-            // reject backfacing cases
-            const float epsilon = 0.05; // empirical value
-            op *= dot(v_h, norm_o) > epsilon;
-
-            // fall off with the distance from the origin
-            op *= saturate(2 - distance(wpos_o, wpos_s1) / _Radius);
-            op *= saturate(2 - distance(wpos_o, wpos_s2) / _Radius);
-
-            ao += op * 2;
-        }
-
-        #else // _METHOD_DISTANCE
 
         // Distance-based estimator based on Morgan 2011 http://goo.gl/2iz3P
         for (int s = 0; s < _SampleCount; s++)
@@ -271,8 +206,6 @@ Shader "Hidden/Kino/Obscurance"
         }
 
         ao *= (1 / UNITY_PI); // intensity normalization
-
-        #endif
 
         // apply other parameters
         return pow(ao * _Intensity / _SampleCount, _Contrast);

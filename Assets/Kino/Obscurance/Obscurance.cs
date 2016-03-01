@@ -51,20 +51,6 @@ namespace Kino
         [SerializeField]
         float _radius = 0.3f;
 
-        /// Obscurance estimator type
-        public EstimatorType estimatorType {
-            get { return _estimatorType; }
-            set { _estimatorType = value; }
-        }
-
-        public enum EstimatorType {
-            AngleBased,
-            DistanceBased
-        }
-
-        [SerializeField]
-        EstimatorType _estimatorType = EstimatorType.DistanceBased;
-
         /// Sample count options
         public SampleCount sampleCount {
             get { return _sampleCount; }
@@ -289,10 +275,6 @@ namespace Kino
             // AO source (CameraDepthNormals or G-buffer)
             if (IsGBufferAvailable)
                 m.EnableKeyword("_SOURCE_GBUFFER");
-
-            // AO method (angle based or distance based)
-            if (estimatorType == EstimatorType.DistanceBased)
-                m.EnableKeyword("_METHOD_DISTANCE");
 
             // Sample count
             if (sampleCount == SampleCount.Low)
