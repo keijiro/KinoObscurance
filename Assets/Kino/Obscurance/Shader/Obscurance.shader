@@ -57,7 +57,6 @@ Shader "Hidden/Kino/Obscurance"
     half _Intensity;
     half _Contrast;
     float _Radius;
-    float _DepthFallOff;
     float _TargetScale;
     float2 _BlurVector;
 
@@ -95,10 +94,12 @@ Shader "Hidden/Kino/Obscurance"
     float SampleDepth(float2 uv)
     {
     #if _SOURCE_GBUFFER
-        return LinearEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv));
+        float d = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv);
+        return LinearEyeDepth(d) + (d >= 1) * 1e8; // offset bg plane
     #else
         float4 cdn = tex2D(_CameraDepthNormalsTexture, uv);
-        return DecodeFloatRG(cdn.zw) * _ProjectionParams.z;
+        float d = DecodeFloatRG(cdn.zw);
+        return d * _ProjectionParams.z + (d >= 1) * 1e8; // offset bg plane
     #endif
     }
 
@@ -109,9 +110,7 @@ Shader "Hidden/Kino/Obscurance"
         return mul((float3x3)_WorldToCamera, norm);
     #else
         float4 cdn = tex2D(_CameraDepthNormalsTexture, uv);
-        float3 normal = DecodeViewNormalStereo(cdn);
-        normal.z *= -1;
-        return normal;
+        return DecodeViewNormalStereo(cdn) * float3(1, 1, -1);
     #endif
     }
 
@@ -122,9 +121,9 @@ Shader "Hidden/Kino/Obscurance"
         return SampleDepth(uv);
     #else
         float4 cdn = tex2D(_CameraDepthNormalsTexture, uv);
-        normal = DecodeViewNormalStereo(cdn);
-        normal.z *= -1;
-        return DecodeFloatRG(cdn.zw) * _ProjectionParams.z;
+        normal = DecodeViewNormalStereo(cdn) * float3(1, 1, -1);
+        float d = DecodeFloatRG(cdn.zw);
+        return d * _ProjectionParams.z + (d >= 1) * 1e8; // offset bg plane
     #endif
     }
 
@@ -151,12 +150,12 @@ Shader "Hidden/Kino/Obscurance"
     #if _METHOD_ANGLE
 
     // Sample point picker for the angle-based method
-    float2 PickSamplePoint(float2 uv, float index)
+    float2 PickSamplePoint(float2 uv, float index, float radius)
     {
         float gn = GradientNoise(uv * _ScreenParams.xy * _TargetScale);
         float theta = (UVRandom(0, index) + gn) * UNITY_PI * 2;
-        // make them distributed between [0, _Radius]
-        float l = lerp(0.1, 1.0, index / _SampleCount) * _Radius;
+        // make them distributed between [eps, radius]
+        float l = lerp(0.01, radius, index / _SampleCount);
         return CosSin(theta) * l;
     }
 
@@ -192,11 +191,11 @@ Shader "Hidden/Kino/Obscurance"
         #if _SOURCE_DEPTHNORMALS
         // offset to avoid precision error
         // (depth in the DepthNormals mode has only 16-bit precision)
-        depth_o -=_ProjectionParams.z / 65536;
+        depth_o -= _ProjectionParams.z / 65536;
+        #elif _METHOD_ANGLE
+        // offset for the angle-based method
+        depth_o -= 1e-5;
         #endif
-
-        // early-out case
-        // if (depth_o > kFallOffDist) return 0;
 
         // reconstruct the view-space position
         float3 wpos_o = ReconstructWorldPos(uv, depth_o, p11_22, p13_31);
@@ -209,9 +208,9 @@ Shader "Hidden/Kino/Obscurance"
         for (int s = 0; s < _SampleCount / 2; s++)
         {
             // pair of sampling point
-            float2 v_s = PickSamplePoint(uv, s);
-            float2 uv_s1 = uv + v_s / depth_o;
-            float2 uv_s2 = uv - v_s / depth_o;
+            float2 v_s = PickSamplePoint(uv, s, 2 * _Radius / depth_o);
+            float2 uv_s1 = uv + v_s;
+            float2 uv_s2 = uv - v_s;
 
             // fetch depth value
             float depth_s1 = SampleDepth(uv_s1);
@@ -266,17 +265,14 @@ Shader "Hidden/Kino/Obscurance"
             float3 v_s2 = wpos_s2 - wpos_o;
 
             // estimate the obscurance value
-            const float beta = 0.01;     // empirical value
-            const float epsilon = 0.001; // empirical value
-            ao += max(dot(v_s2, norm_o) - beta, 0) / (dot(v_s2, v_s2) + epsilon);
+            const float epsilon = 0.01;    // empirical value
+            float bias = -0.001 * depth_o; // empirical value
+            ao += max(dot(v_s2, norm_o) + bias, 0) / (dot(v_s2, v_s2) + epsilon);
         }
 
         ao *= (1 / UNITY_PI); // intensity normalization
 
         #endif
-
-        // apply the depth fall-off
-        ao *= max(0, 1.0 - depth_o / _DepthFallOff);
 
         // apply other parameters
         return pow(ao * _Intensity / _SampleCount, _Contrast);
