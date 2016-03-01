@@ -200,12 +200,12 @@ Shader "Hidden/Kino/Obscurance"
             float3 v_s2 = wpos_s2 - wpos_o;
 
             // estimate the obscurance value
-            const float epsilon = 0.01;    // empirical value
-            float bias = -0.001 * depth_o; // empirical value
+            const float epsilon = 1e-4;    // empirical value
+            float bias = -0.002 * depth_o; // empirical value
             ao += max(dot(v_s2, norm_o) + bias, 0) / (dot(v_s2, v_s2) + epsilon);
         }
 
-        ao *= (1 / UNITY_PI); // intensity normalization
+        ao *= _Radius; // intensity normalization
 
         // apply other parameters
         return pow(ao * _Intensity / _SampleCount, _Contrast);
