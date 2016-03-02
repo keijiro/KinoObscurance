@@ -71,14 +71,14 @@ namespace Kino
         [SerializeField]
         int _sampleCountValue = 20;
 
-        /// Noise filter
-        public int noiseFilter {
-            get { return _noiseFilter; }
-            set { _noiseFilter = value; }
+        /// Determines how many times it applies blur filter
+        public int blurIterations {
+            get { return _blurIterations; }
+            set { _blurIterations = value; }
         }
 
-        [SerializeField, Range(0, 2)]
-        int _noiseFilter = 2;
+        [SerializeField, Range(0, 4)]
+        int _blurIterations = 2;
 
         /// Downsampling (half-resolution mode)
         public bool downsampling {
@@ -181,7 +181,7 @@ namespace Kino
             // AO estimation
             cb.Blit(null, rtMask, m, 0);
 
-            if (noiseFilter > 0)
+            if (blurIterations > 0)
             {
                 // Blur buffer
                 var rtBlur = Shader.PropertyToID("_ObscuranceBlurTexture");
@@ -190,7 +190,7 @@ namespace Kino
                 );
 
                 // Geometry-aware blur
-                for (var i = 0; i < noiseFilter; i++)
+                for (var i = 0; i < blurIterations; i++)
                 {
                     cb.SetGlobalVector("_BlurVector", Vector2.right);
                     cb.Blit(rtMask, rtBlur, m, 1);
@@ -233,7 +233,7 @@ namespace Kino
             // AO estimation
             Graphics.Blit(null, rtMask, m, 0);
 
-            if (noiseFilter > 0)
+            if (blurIterations > 0)
             {
                 // Blur buffer
                 var rtBlur = RenderTexture.GetTemporary(
@@ -241,7 +241,7 @@ namespace Kino
                 );
 
                 // Geometry-aware blur
-                for (var i = 0; i < noiseFilter; i++)
+                for (var i = 0; i < blurIterations; i++)
                 {
                     m.SetVector("_BlurVector", Vector2.right);
                     Graphics.Blit(rtMask, rtBlur, m, 1);
