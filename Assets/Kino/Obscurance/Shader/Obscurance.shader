@@ -41,10 +41,10 @@ Shader "Hidden/Kino/Obscurance"
     sampler2D _ObscuranceTexture;
     #if _SOURCE_GBUFFER
     sampler2D _CameraGBufferTexture2;
-    sampler2D _CameraDepthTexture;
+    sampler2D_float _CameraDepthTexture;
     float4x4 _WorldToCamera;
     #else
-    sampler2D _CameraDepthNormalsTexture;
+    sampler2D_float _CameraDepthNormalsTexture;
     #endif
 
     // material shader properties
