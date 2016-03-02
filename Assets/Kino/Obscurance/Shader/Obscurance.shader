@@ -73,6 +73,16 @@ Shader "Hidden/Kino/Obscurance"
         return float2(cs, sn);
     }
 
+    // Gamma encoding function for AO value
+    // (do nothing if in the linear mode)
+    half EncodeAO(half x)
+    {
+        // Gamma encoding
+        half x_g = 1 - pow(1 - x, 1 / 2.2);
+        // ColorSpaceLuminance.w will be 0 (gamma) or 1 (linear)
+        return lerp(x_g, x, unity_ColorSpaceLuminance.w);
+    }
+
     // Pseudo random number generator with 2D argument
     float UVRandom(float u, float v)
     {
@@ -141,7 +151,7 @@ Shader "Hidden/Kino/Obscurance"
     // Final combiner function
     half3 CombineObscurance(half3 src, half3 mask)
     {
-        return lerp(src, 0, mask);
+        return lerp(src, 0, EncodeAO(mask));
     }
 
     // Sample point picker
@@ -277,7 +287,7 @@ Shader "Hidden/Kino/Obscurance"
         half ao = tex2D(_ObscuranceTexture, i.uv);
         OcclusionOutput o;
         o.gbuffer0 = half4(0, 0, 0, ao);
-        o.gbuffer3 = half4(ao, ao, ao, 0);
+        o.gbuffer3 = half4(half3(EncodeAO(ao)), 0);
         return o;
     }
 
