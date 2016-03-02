@@ -291,12 +291,12 @@ Shader "Hidden/Kino/Obscurance"
         half4 gbuffer3 : COLOR1;
     };
 
-    OcclusionOutput frag_gbuffer_combine(v2f_img i) : SV_Target
+    OcclusionOutput frag_gbuffer_combine(v2f_img i)
     {
         half ao = tex2D(_ObscuranceTexture, i.uv);
         OcclusionOutput o;
         o.gbuffer0 = half4(0, 0, 0, ao);
-        o.gbuffer3 = half4(half3(EncodeAO(ao)), 0);
+        o.gbuffer3 = half4((half3)EncodeAO(ao), 0);
         return o;
     }
 
