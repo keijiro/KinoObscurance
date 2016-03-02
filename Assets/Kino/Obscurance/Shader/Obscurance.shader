@@ -97,16 +97,24 @@ Shader "Hidden/Kino/Obscurance"
         return frac(52.9829189f * frac(f));
     }
 
+    // Boundary check for depth sampler
+    // (returns a very large value if it lies out of bounds)
+    float CheckBounds(float2 uv, float d)
+    {
+        float ob = any(uv < 0) + any(uv > 1) + (d >= 0.99999);
+        return ob * 1e8;
+    }
+
     // Sampling functions with CameraDepthNormalTexture
     float SampleDepth(float2 uv)
     {
     #if _SOURCE_GBUFFER
         float d = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv);
-        return LinearEyeDepth(d) + (d >= 1) * 1e8; // offset bg plane
+        return LinearEyeDepth(d) + CheckBounds(uv, d);
     #else
         float4 cdn = tex2D(_CameraDepthNormalsTexture, uv);
         float d = DecodeFloatRG(cdn.zw);
-        return d * _ProjectionParams.z + (d >= 1) * 1e8; // offset bg plane
+        return d * _ProjectionParams.z + CheckBounds(uv, d);
     #endif
     }
 
@@ -130,7 +138,7 @@ Shader "Hidden/Kino/Obscurance"
         float4 cdn = tex2D(_CameraDepthNormalsTexture, uv);
         normal = DecodeViewNormalStereo(cdn) * float3(1, 1, -1);
         float d = DecodeFloatRG(cdn.zw);
-        return d * _ProjectionParams.z + (d >= 1) * 1e8; // offset bg plane
+        return d * _ProjectionParams.z + CheckBounds(uv, d);
     #endif
     }
 
