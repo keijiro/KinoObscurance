@@ -93,7 +93,8 @@ Shader "Hidden/Kino/Obscurance"
     // Interleaved gradient from Jimenez 2014 http://goo.gl/eomGso
     float GradientNoise(float2 uv)
     {
-        float f = dot(float2(0.06711056f, 0.00583715f), floor(uv));
+        uv = floor(uv * _ScreenParams.xy);
+        float f = dot(float2(0.06711056f, 0.00583715f), uv);
         return frac(52.9829189f * frac(f));
     }
 
@@ -166,12 +167,12 @@ Shader "Hidden/Kino/Obscurance"
     float3 PickSamplePoint(float2 uv, float index)
     {
         // uniformaly distributed points on a unit sphere http://goo.gl/X2F1Ho
-        float gn = GradientNoise(uv * _ScreenParams.xy * _TargetScale);
+        float gn = GradientNoise(uv * _TargetScale);
         float u = frac(UVRandom(0, index) + gn) * 2 - 1;
         float theta = (UVRandom(1, index) + gn) * UNITY_PI * 2;
         float3 v = float3(CosSin(theta) * sqrt(1 - u * u), u);
         // make them distributed between [0, _Radius]
-        float l = lerp(0.1, 1.0, pow(index / _SampleCount, 1.0 / 3)) * _Radius;
+        float l = lerp(0, 1, sqrt((index + 1) / _SampleCount)) * _Radius;
         return v * l;
     }
 
