@@ -165,6 +165,7 @@ namespace Kino
             var tw = targetCamera.pixelWidth;
             var th = targetCamera.pixelHeight;
             var format = RenderTextureFormat.R8;
+            var rwMode = RenderTextureReadWrite.Linear;
 
             if (downsampling) {
                 tw /= 2;
@@ -175,7 +176,7 @@ namespace Kino
             var m = aoMaterial;
             var rtMask = Shader.PropertyToID("_ObscuranceTexture");
             cb.GetTemporaryRT(
-                rtMask, tw, th, 0, FilterMode.Bilinear, format
+                rtMask, tw, th, 0, FilterMode.Bilinear, format, rwMode
             );
 
             // AO estimation
@@ -186,7 +187,7 @@ namespace Kino
                 // Blur buffer
                 var rtBlur = Shader.PropertyToID("_ObscuranceBlurTexture");
                 cb.GetTemporaryRT(
-                    rtBlur, tw, th, 0, FilterMode.Bilinear, format
+                    rtBlur, tw, th, 0, FilterMode.Bilinear, format, rwMode
                 );
 
                 // Geometry-aware blur
@@ -218,6 +219,8 @@ namespace Kino
         {
             var tw = source.width;
             var th = source.height;
+            var format = RenderTextureFormat.R8;
+            var rwMode = RenderTextureReadWrite.Linear;
 
             if (downsampling) {
                 tw /= 2;
@@ -227,7 +230,7 @@ namespace Kino
             // AO buffer
             var m = aoMaterial;
             var rtMask = RenderTexture.GetTemporary(
-                tw, th, 0, RenderTextureFormat.R8
+                tw, th, 0, format, rwMode
             );
 
             // AO estimation
@@ -237,7 +240,7 @@ namespace Kino
             {
                 // Blur buffer
                 var rtBlur = RenderTexture.GetTemporary(
-                    tw, th, 0, RenderTextureFormat.R8
+                    tw, th, 0, format, rwMode
                 );
 
                 // Geometry-aware blur
