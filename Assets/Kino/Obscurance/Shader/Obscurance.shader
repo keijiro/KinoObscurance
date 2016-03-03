@@ -36,7 +36,7 @@ Shader "Hidden/Kino/Obscurance"
     #pragma multi_compile _SOURCE_DEPTHNORMALS _SOURCE_GBUFFER
 
     // sample count (reconfigurable when no keyword is given)
-    #pragma multi_compile _ _COUNT_LOW _COUNT_MEDIUM
+    #pragma multi_compile _ _SAMPLECOUNT_LOWEST
 
     // global shader properties
     sampler2D _ObscuranceTexture;
@@ -58,10 +58,8 @@ Shader "Hidden/Kino/Obscurance"
     float _TargetScale;
     float2 _BlurVector;
 
-    #if _COUNT_LOW
-    static const int _SampleCount = 6;
-    #elif _COUNT_MEDIUM
-    static const int _SampleCount = 12;
+    #if _SAMPLECOUNT_LOWEST
+    static const int _SampleCount = 3;
     #else
     int _SampleCount; // given via uniform
     #endif

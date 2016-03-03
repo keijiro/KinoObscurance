@@ -57,19 +57,27 @@ namespace Kino
             set { _sampleCount = value; }
         }
 
-        public enum SampleCount { Low, Medium, Variable }
+        public enum SampleCount { Lowest, Low, Medium, High, Variable }
 
         [SerializeField]
         SampleCount _sampleCount = SampleCount.Medium;
 
         /// Variable sample count value
         public int sampleCountValue {
-            get { return Mathf.Clamp(_sampleCountValue, 1, 120); }
+            get {
+                switch (_sampleCount) {
+                    case SampleCount.Lowest: return 3;
+                    case SampleCount.Low:    return 6;
+                    case SampleCount.Medium: return 12;
+                    case SampleCount.High:   return 20;
+                }
+                return Mathf.Clamp(_sampleCountValue, 1, 120);
+            }
             set { _sampleCountValue = value; }
         }
 
         [SerializeField]
-        int _sampleCountValue = 20;
+        int _sampleCountValue = 24;
 
         /// Determines how many times it applies blur filter
         public int blurIterations {
@@ -280,10 +288,8 @@ namespace Kino
                 m.EnableKeyword("_SOURCE_GBUFFER");
 
             // Sample count
-            if (sampleCount == SampleCount.Low)
-                m.EnableKeyword("_COUNT_LOW");
-            else if (sampleCount == SampleCount.Medium)
-                m.EnableKeyword("_COUNT_MEDIUM");
+            if (sampleCount == SampleCount.Lowest)
+                m.EnableKeyword("_SAMPLECOUNT_LOWEST");
             else
                 m.SetInt("_SampleCount", sampleCountValue);
         }
