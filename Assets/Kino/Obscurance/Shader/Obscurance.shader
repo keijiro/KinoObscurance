@@ -268,10 +268,28 @@ Shader "Hidden/Kino/Obscurance"
     }
 
     // Pass 2: combiner for the forward mode
-    half4 frag_combine(v2f_img i) : SV_Target
+    struct v2f_multitex
     {
-        half4 src = tex2D(_MainTex, i.uv);
-        half mask = tex2D(_ObscuranceTexture, i.uv).r;
+        float4 pos : SV_POSITION;
+        float2 uv0 : TEXCOORD0;
+        float2 uv1 : TEXCOORD1;
+    };
+
+    v2f_multitex vert_multitex(appdata_img v)
+    {
+        float vflip = sign(_MainTex_TexelSize.y);
+
+        v2f_multitex o;
+        o.pos = mul(UNITY_MATRIX_MVP, v.vertex);
+        o.uv0 = v.texcoord.xy;
+        o.uv1 = (v.texcoord.xy - 0.5) * float2(1, vflip) + 0.5;
+        return o;
+    }
+
+    half4 frag_combine(v2f_multitex i) : SV_Target
+    {
+        half4 src = tex2D(_MainTex, i.uv0);
+        half mask = tex2D(_ObscuranceTexture, i.uv1).r;
         return half4(CombineObscurance(src.rgb, mask), src.a);
     }
 
@@ -329,7 +347,7 @@ Shader "Hidden/Kino/Obscurance"
         {
             ZTest Always Cull Off ZWrite Off
             CGPROGRAM
-            #pragma vertex vert_img
+            #pragma vertex vert_multitex
             #pragma fragment frag_combine
             #pragma target 3.0
             ENDCG
