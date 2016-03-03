@@ -51,48 +51,42 @@ namespace Kino
         [SerializeField]
         float _radius = 0.3f;
 
-        /// Obscurance estimator type
-        public EstimatorType estimatorType {
-            get { return _estimatorType; }
-            set { _estimatorType = value; }
-        }
-
-        public enum EstimatorType {
-            AngleBased,
-            DistanceBased
-        }
-
-        [SerializeField]
-        EstimatorType _estimatorType = EstimatorType.DistanceBased;
-
         /// Sample count options
         public SampleCount sampleCount {
             get { return _sampleCount; }
             set { _sampleCount = value; }
         }
 
-        public enum SampleCount { Low, Medium, Variable }
+        public enum SampleCount { Lowest, Low, Medium, High, Variable }
 
         [SerializeField]
         SampleCount _sampleCount = SampleCount.Medium;
 
         /// Variable sample count value
         public int sampleCountValue {
-            get { return Mathf.Clamp(_sampleCountValue, 1, 120); }
+            get {
+                switch (_sampleCount) {
+                    case SampleCount.Lowest: return 3;
+                    case SampleCount.Low:    return 6;
+                    case SampleCount.Medium: return 12;
+                    case SampleCount.High:   return 20;
+                }
+                return Mathf.Clamp(_sampleCountValue, 1, 120);
+            }
             set { _sampleCountValue = value; }
         }
 
         [SerializeField]
-        int _sampleCountValue = 20;
+        int _sampleCountValue = 24;
 
-        /// Noise filter
-        public int noiseFilter {
-            get { return _noiseFilter; }
-            set { _noiseFilter = value; }
+        /// Determines how many times it applies blur filter
+        public int blurIterations {
+            get { return _blurIterations; }
+            set { _blurIterations = value; }
         }
 
-        [SerializeField, Range(0, 2)]
-        int _noiseFilter = 2;
+        [SerializeField, Range(0, 4)]
+        int _blurIterations = 2;
 
         /// Downsampling (half-resolution mode)
         public bool downsampling {
@@ -179,6 +173,7 @@ namespace Kino
             var tw = targetCamera.pixelWidth;
             var th = targetCamera.pixelHeight;
             var format = RenderTextureFormat.R8;
+            var rwMode = RenderTextureReadWrite.Linear;
 
             if (downsampling) {
                 tw /= 2;
@@ -189,22 +184,22 @@ namespace Kino
             var m = aoMaterial;
             var rtMask = Shader.PropertyToID("_ObscuranceTexture");
             cb.GetTemporaryRT(
-                rtMask, tw, th, 0, FilterMode.Bilinear, format
+                rtMask, tw, th, 0, FilterMode.Bilinear, format, rwMode
             );
 
             // AO estimation
             cb.Blit(null, rtMask, m, 0);
 
-            if (noiseFilter > 0)
+            if (blurIterations > 0)
             {
                 // Blur buffer
                 var rtBlur = Shader.PropertyToID("_ObscuranceBlurTexture");
                 cb.GetTemporaryRT(
-                    rtBlur, tw, th, 0, FilterMode.Bilinear, format
+                    rtBlur, tw, th, 0, FilterMode.Bilinear, format, rwMode
                 );
 
                 // Geometry-aware blur
-                for (var i = 0; i < noiseFilter; i++)
+                for (var i = 0; i < blurIterations; i++)
                 {
                     cb.SetGlobalVector("_BlurVector", Vector2.right);
                     cb.Blit(rtMask, rtBlur, m, 1);
@@ -232,6 +227,8 @@ namespace Kino
         {
             var tw = source.width;
             var th = source.height;
+            var format = RenderTextureFormat.R8;
+            var rwMode = RenderTextureReadWrite.Linear;
 
             if (downsampling) {
                 tw /= 2;
@@ -241,21 +238,21 @@ namespace Kino
             // AO buffer
             var m = aoMaterial;
             var rtMask = RenderTexture.GetTemporary(
-                tw, th, 0, RenderTextureFormat.R8
+                tw, th, 0, format, rwMode
             );
 
             // AO estimation
             Graphics.Blit(null, rtMask, m, 0);
 
-            if (noiseFilter > 0)
+            if (blurIterations > 0)
             {
                 // Blur buffer
                 var rtBlur = RenderTexture.GetTemporary(
-                    tw, th, 0, RenderTextureFormat.R8
+                    tw, th, 0, format, rwMode
                 );
 
                 // Geometry-aware blur
-                for (var i = 0; i < noiseFilter; i++)
+                for (var i = 0; i < blurIterations; i++)
                 {
                     m.SetVector("_BlurVector", Vector2.right);
                     Graphics.Blit(rtMask, rtBlur, m, 1);
@@ -290,15 +287,9 @@ namespace Kino
             if (IsGBufferAvailable)
                 m.EnableKeyword("_SOURCE_GBUFFER");
 
-            // AO method (angle based or distance based)
-            if (estimatorType == EstimatorType.DistanceBased)
-                m.EnableKeyword("_METHOD_DISTANCE");
-
             // Sample count
-            if (sampleCount == SampleCount.Low)
-                m.EnableKeyword("_COUNT_LOW");
-            else if (sampleCount == SampleCount.Medium)
-                m.EnableKeyword("_COUNT_MEDIUM");
+            if (sampleCount == SampleCount.Lowest)
+                m.EnableKeyword("_SAMPLECOUNT_LOWEST");
             else
                 m.SetInt("_SampleCount", sampleCountValue);
         }

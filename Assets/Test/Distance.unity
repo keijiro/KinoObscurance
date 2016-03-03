@@ -118,10 +118,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _intensity: 4
   _radius: .5
-  _estimatorType: 1
-  _sampleCount: 1
-  _sampleCountValue: 147
-  _noiseFilter: 0
+  _sampleCount: 2
+  _sampleCountValue: 24
+  _blurIterations: 0
   _downsampling: 0
   _ambientOnly: 0
   _quadMesh: {fileID: 10210, guid: 0000000000000000e000000000000000, type: 0}

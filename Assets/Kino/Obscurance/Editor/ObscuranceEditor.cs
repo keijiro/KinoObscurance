@@ -32,23 +32,24 @@ namespace Kino
     {
         SerializedProperty _intensity;
         SerializedProperty _radius;
-        SerializedProperty _estimatorType;
         SerializedProperty _sampleCount;
         SerializedProperty _sampleCountValue;
-        SerializedProperty _noiseFilter;
+        SerializedProperty _blurIterations;
         SerializedProperty _downsampling;
         SerializedProperty _ambientOnly;
 
         static GUIContent _textValue = new GUIContent("Value");
+        static string _noAmbientOnlyText =
+            "Ambient-Only mode is currently disabled; it needs deferred " +
+            "rendering and HDR rendering.";
 
         void OnEnable()
         {
             _intensity = serializedObject.FindProperty("_intensity");
             _radius = serializedObject.FindProperty("_radius");
-            _estimatorType = serializedObject.FindProperty("_estimatorType");
             _sampleCount = serializedObject.FindProperty("_sampleCount");
             _sampleCountValue = serializedObject.FindProperty("_sampleCountValue");
-            _noiseFilter = serializedObject.FindProperty("_noiseFilter");
+            _blurIterations = serializedObject.FindProperty("_blurIterations");
             _downsampling = serializedObject.FindProperty("_downsampling");
             _ambientOnly = serializedObject.FindProperty("_ambientOnly");
         }
@@ -59,7 +60,6 @@ namespace Kino
 
             EditorGUILayout.PropertyField(_intensity);
             EditorGUILayout.PropertyField(_radius);
-            EditorGUILayout.PropertyField(_estimatorType);
             EditorGUILayout.PropertyField(_sampleCount);
 
             if (_sampleCount.hasMultipleDifferentValues ||
@@ -70,9 +70,13 @@ namespace Kino
                 EditorGUI.indentLevel--;
             }
 
-            EditorGUILayout.PropertyField(_noiseFilter);
+            EditorGUILayout.PropertyField(_blurIterations);
             EditorGUILayout.PropertyField(_downsampling);
             EditorGUILayout.PropertyField(_ambientOnly);
+
+            if (!_ambientOnly.hasMultipleDifferentValues)
+                if (_ambientOnly.boolValue != ((Obscurance)target).ambientOnly)
+                    EditorGUILayout.HelpBox(_noAmbientOnlyText, MessageType.Info);
 
             serializedObject.ApplyModifiedProperties();
         }

@@ -26,6 +26,7 @@ Shader "Hidden/Kino/Obscurance"
     Properties
     {
         _MainTex("", 2D) = ""{}
+        _ObscuranceTexture("", 2D) = ""{}
     }
     CGINCLUDE
 
@@ -34,20 +35,17 @@ Shader "Hidden/Kino/Obscurance"
     // source type (CameraDepthNormals or G-buffer)
     #pragma multi_compile _SOURCE_DEPTHNORMALS _SOURCE_GBUFFER
 
-    // estimator type selection
-    #pragma multi_compile _METHOD_ANGLE _METHOD_DISTANCE
-
     // sample count (reconfigurable when no keyword is given)
-    #pragma multi_compile _ _COUNT_LOW _COUNT_MEDIUM
+    #pragma multi_compile _ _SAMPLECOUNT_LOWEST
 
     // global shader properties
     sampler2D _ObscuranceTexture;
     #if _SOURCE_GBUFFER
     sampler2D _CameraGBufferTexture2;
-    sampler2D _CameraDepthTexture;
+    sampler2D_float _CameraDepthTexture;
     float4x4 _WorldToCamera;
     #else
-    sampler2D _CameraDepthNormalsTexture;
+    sampler2D_float _CameraDepthNormalsTexture;
     #endif
 
     // material shader properties
@@ -60,10 +58,8 @@ Shader "Hidden/Kino/Obscurance"
     float _TargetScale;
     float2 _BlurVector;
 
-    #if _COUNT_LOW
-    static const int _SampleCount = 6;
-    #elif _COUNT_MEDIUM
-    static const int _SampleCount = 12;
+    #if _SAMPLECOUNT_LOWEST
+    static const int _SampleCount = 3;
     #else
     int _SampleCount; // given via uniform
     #endif
@@ -76,6 +72,16 @@ Shader "Hidden/Kino/Obscurance"
         return float2(cs, sn);
     }
 
+    // Gamma encoding function for AO value
+    // (do nothing if in the linear mode)
+    half EncodeAO(half x)
+    {
+        // Gamma encoding
+        half x_g = 1 - pow(1 - x, 1 / 2.2);
+        // ColorSpaceLuminance.w will be 0 (gamma) or 1 (linear)
+        return lerp(x_g, x, unity_ColorSpaceLuminance.w);
+    }
+
     // Pseudo random number generator with 2D argument
     float UVRandom(float u, float v)
     {
@@ -86,8 +92,17 @@ Shader "Hidden/Kino/Obscurance"
     // Interleaved gradient from Jimenez 2014 http://goo.gl/eomGso
     float GradientNoise(float2 uv)
     {
-        float f = dot(float2(0.06711056f, 0.00583715f), floor(uv));
+        uv = floor(uv * _ScreenParams.xy);
+        float f = dot(float2(0.06711056f, 0.00583715f), uv);
         return frac(52.9829189f * frac(f));
+    }
+
+    // Boundary check for depth sampler
+    // (returns a very large value if it lies out of bounds)
+    float CheckBounds(float2 uv, float d)
+    {
+        float ob = any(uv < 0) + any(uv > 1) + (d >= 0.99999);
+        return ob * 1e8;
     }
 
     // Sampling functions with CameraDepthNormalTexture
@@ -95,11 +110,11 @@ Shader "Hidden/Kino/Obscurance"
     {
     #if _SOURCE_GBUFFER
         float d = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv);
-        return LinearEyeDepth(d) + (d >= 1) * 1e8; // offset bg plane
+        return LinearEyeDepth(d) + CheckBounds(uv, d);
     #else
         float4 cdn = tex2D(_CameraDepthNormalsTexture, uv);
         float d = DecodeFloatRG(cdn.zw);
-        return d * _ProjectionParams.z + (d >= 1) * 1e8; // offset bg plane
+        return d * _ProjectionParams.z + CheckBounds(uv, d);
     #endif
     }
 
@@ -123,7 +138,7 @@ Shader "Hidden/Kino/Obscurance"
         float4 cdn = tex2D(_CameraDepthNormalsTexture, uv);
         normal = DecodeViewNormalStereo(cdn) * float3(1, 1, -1);
         float d = DecodeFloatRG(cdn.zw);
-        return d * _ProjectionParams.z + (d >= 1) * 1e8; // offset bg plane
+        return d * _ProjectionParams.z + CheckBounds(uv, d);
     #endif
     }
 
@@ -144,37 +159,21 @@ Shader "Hidden/Kino/Obscurance"
     // Final combiner function
     half3 CombineObscurance(half3 src, half3 mask)
     {
-        return lerp(src, 0, mask);
+        return lerp(src, 0, EncodeAO(mask));
     }
 
-    #if _METHOD_ANGLE
-
-    // Sample point picker for the angle-based method
-    float2 PickSamplePoint(float2 uv, float index, float radius)
-    {
-        float gn = GradientNoise(uv * _ScreenParams.xy * _TargetScale);
-        float theta = (UVRandom(0, index) + gn) * UNITY_PI * 2;
-        // make them distributed between [eps, radius]
-        float l = lerp(0.01, radius, index / _SampleCount);
-        return CosSin(theta) * l;
-    }
-
-    #else // _METHOD_DISTANCE
-
-    // Sample point picker for the distance-based method
+    // Sample point picker
     float3 PickSamplePoint(float2 uv, float index)
     {
         // uniformaly distributed points on a unit sphere http://goo.gl/X2F1Ho
-        float gn = GradientNoise(uv * _ScreenParams.xy * _TargetScale);
+        float gn = GradientNoise(uv * _TargetScale);
         float u = frac(UVRandom(0, index) + gn) * 2 - 1;
         float theta = (UVRandom(1, index) + gn) * UNITY_PI * 2;
         float3 v = float3(CosSin(theta) * sqrt(1 - u * u), u);
         // make them distributed between [0, _Radius]
-        float l = lerp(0.1, 1.0, pow(index / _SampleCount, 1.0 / 3)) * _Radius;
+        float l = lerp(0, 1, sqrt((index + 1) / _SampleCount)) * _Radius;
         return v * l;
     }
-
-    #endif
 
     // Obscurance estimator function
     float EstimateObscurance(float2 uv)
@@ -192,58 +191,12 @@ Shader "Hidden/Kino/Obscurance"
         // offset to avoid precision error
         // (depth in the DepthNormals mode has only 16-bit precision)
         depth_o -= _ProjectionParams.z / 65536;
-        #elif _METHOD_ANGLE
-        // offset for the angle-based method
-        depth_o -= 1e-5;
         #endif
 
         // reconstruct the view-space position
         float3 wpos_o = ReconstructWorldPos(uv, depth_o, p11_22, p13_31);
 
         float ao = 0.0;
-
-        #if _METHOD_ANGLE
-
-        // Angle-based estimator based on Mittring 2012 http://goo.gl/wPZrAA
-        for (int s = 0; s < _SampleCount / 2; s++)
-        {
-            // pair of sampling point
-            float2 v_s = PickSamplePoint(uv, s, 2 * _Radius / depth_o);
-            float2 uv_s1 = uv + v_s;
-            float2 uv_s2 = uv - v_s;
-
-            // fetch depth value
-            float depth_s1 = SampleDepth(uv_s1);
-            float depth_s2 = SampleDepth(uv_s2);
-
-            // world position
-            float3 wpos_s1 = ReconstructWorldPos(uv_s1, depth_s1, p11_22, p13_31);
-            float3 wpos_s2 = ReconstructWorldPos(uv_s2, depth_s2, p11_22, p13_31);
-
-            // vector towards the sampling points
-            float3 v_s1 = wpos_s1 - wpos_o;
-            float3 v_s2 = wpos_s2 - wpos_o;
-
-            // clip the vectors with the tangent plane
-            v_s1 = normalize(v_s1 - norm_o * min(0, dot(v_s1, norm_o)));
-            v_s2 = normalize(v_s2 - norm_o * min(0, dot(v_s1, norm_o)));
-
-            // get the angle between the vectors
-            float3 v_h = normalize(v_s1 + v_s2);
-            float op = asin(dot(v_s1, v_h)) * 4 / UNITY_PI;
-
-            // reject backfacing cases
-            const float epsilon = 0.05; // empirical value
-            op *= dot(v_h, norm_o) > epsilon;
-
-            // fall off with the distance from the origin
-            op *= saturate(2 - distance(wpos_o, wpos_s1) / _Radius);
-            op *= saturate(2 - distance(wpos_o, wpos_s2) / _Radius);
-
-            ao += op * 2;
-        }
-
-        #else // _METHOD_DISTANCE
 
         // Distance-based estimator based on Morgan 2011 http://goo.gl/2iz3P
         for (int s = 0; s < _SampleCount; s++)
@@ -265,21 +218,19 @@ Shader "Hidden/Kino/Obscurance"
             float3 v_s2 = wpos_s2 - wpos_o;
 
             // estimate the obscurance value
-            const float epsilon = 0.01;    // empirical value
-            float bias = -0.001 * depth_o; // empirical value
+            const float epsilon = 1e-4;    // empirical value
+            float bias = -0.002 * depth_o; // empirical value
             ao += max(dot(v_s2, norm_o) + bias, 0) / (dot(v_s2, v_s2) + epsilon);
         }
 
-        ao *= (1 / UNITY_PI); // intensity normalization
-
-        #endif
+        ao *= _Radius; // intensity normalization
 
         // apply other parameters
         return pow(ao * _Intensity / _SampleCount, _Contrast);
     }
 
     // Separable blur filter for noise reduction
-    half3 SeparableBlur(sampler2D tex, float2 uv, float2 delta)
+    half SeparableBlur(sampler2D tex, float2 uv, float2 delta)
     {
         half3 n0 = SampleNormal(uv);
 
@@ -294,11 +245,11 @@ Shader "Hidden/Kino/Obscurance"
         half w3 = CompareNormal(n0, SampleNormal(uv3));
         half w4 = CompareNormal(n0, SampleNormal(uv4));
 
-        half3 s = tex2D(tex, uv) * w0;
-        s += tex2D(tex, uv1) * w1;
-        s += tex2D(tex, uv2) * w2;
-        s += tex2D(tex, uv3) * w3;
-        s += tex2D(tex, uv4) * w4;
+        half s = tex2D(tex, uv).r * w0;
+        s += tex2D(tex, uv1).r * w1;
+        s += tex2D(tex, uv2).r * w2;
+        s += tex2D(tex, uv3).r * w3;
+        s += tex2D(tex, uv4).r * w4;
 
         return s / (w0 + w1 + w2 + w3 + w4);
     }
@@ -313,14 +264,32 @@ Shader "Hidden/Kino/Obscurance"
     half4 frag_blur(v2f_img i) : SV_Target
     {
         float2 delta = _MainTex_TexelSize.xy * _BlurVector;
-        return half4(SeparableBlur(_MainTex, i.uv, delta), 0);
+        return SeparableBlur(_MainTex, i.uv, delta);
     }
 
     // Pass 2: combiner for the forward mode
-    half4 frag_combine(v2f_img i) : SV_Target
+    struct v2f_multitex
     {
-        half4 src = tex2D(_MainTex, i.uv);
-        half mask = tex2D(_ObscuranceTexture, i.uv);
+        float4 pos : SV_POSITION;
+        float2 uv0 : TEXCOORD0;
+        float2 uv1 : TEXCOORD1;
+    };
+
+    v2f_multitex vert_multitex(appdata_img v)
+    {
+        float vflip = sign(_MainTex_TexelSize.y);
+
+        v2f_multitex o;
+        o.pos = mul(UNITY_MATRIX_MVP, v.vertex);
+        o.uv0 = v.texcoord.xy;
+        o.uv1 = (v.texcoord.xy - 0.5) * float2(1, vflip) + 0.5;
+        return o;
+    }
+
+    half4 frag_combine(v2f_multitex i) : SV_Target
+    {
+        half4 src = tex2D(_MainTex, i.uv0);
+        half mask = tex2D(_ObscuranceTexture, i.uv1).r;
         return half4(CombineObscurance(src.rgb, mask), src.a);
     }
 
@@ -328,8 +297,12 @@ Shader "Hidden/Kino/Obscurance"
     v2f_img vert_gbuffer(appdata_img v)
     {
         v2f_img o;
-        o.pos = v.vertex * float4(2, 2, 1, 1);
+        o.pos = v.vertex * float4(2, 2, 0, 0) + float4(0, 0, 0, 1);
+        #if UNITY_UV_STARTS_AT_TOP
+        o.uv = v.texcoord * float2(1, -1) + float2(0, 1);
+        #else
         o.uv = v.texcoord;
+        #endif
         return o;
     }
 
@@ -339,12 +312,12 @@ Shader "Hidden/Kino/Obscurance"
         half4 gbuffer3 : COLOR1;
     };
 
-    OcclusionOutput frag_gbuffer_combine(v2f_img i) : SV_Target
+    OcclusionOutput frag_gbuffer_combine(v2f_img i)
     {
-        half ao = tex2D(_ObscuranceTexture, i.uv);
+        half ao = tex2D(_ObscuranceTexture, i.uv).r;
         OcclusionOutput o;
         o.gbuffer0 = half4(0, 0, 0, ao);
-        o.gbuffer3 = half4(ao, ao, ao, 0);
+        o.gbuffer3 = half4((half3)EncodeAO(ao), 0);
         return o;
     }
 
@@ -374,7 +347,7 @@ Shader "Hidden/Kino/Obscurance"
         {
             ZTest Always Cull Off ZWrite Off
             CGPROGRAM
-            #pragma vertex vert_img
+            #pragma vertex vert_multitex
             #pragma fragment frag_combine
             #pragma target 3.0
             ENDCG
