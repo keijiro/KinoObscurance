@@ -26,6 +26,7 @@ Shader "Hidden/Kino/Obscurance"
     Properties
     {
         _MainTex("", 2D) = ""{}
+        _ObscuranceTexture("", 2D) = ""{}
     }
     CGINCLUDE
 
@@ -231,7 +232,7 @@ Shader "Hidden/Kino/Obscurance"
     }
 
     // Separable blur filter for noise reduction
-    half3 SeparableBlur(sampler2D tex, float2 uv, float2 delta)
+    half SeparableBlur(sampler2D tex, float2 uv, float2 delta)
     {
         half3 n0 = SampleNormal(uv);
 
@@ -246,11 +247,11 @@ Shader "Hidden/Kino/Obscurance"
         half w3 = CompareNormal(n0, SampleNormal(uv3));
         half w4 = CompareNormal(n0, SampleNormal(uv4));
 
-        half3 s = tex2D(tex, uv) * w0;
-        s += tex2D(tex, uv1) * w1;
-        s += tex2D(tex, uv2) * w2;
-        s += tex2D(tex, uv3) * w3;
-        s += tex2D(tex, uv4) * w4;
+        half s = tex2D(tex, uv).r * w0;
+        s += tex2D(tex, uv1).r * w1;
+        s += tex2D(tex, uv2).r * w2;
+        s += tex2D(tex, uv3).r * w3;
+        s += tex2D(tex, uv4).r * w4;
 
         return s / (w0 + w1 + w2 + w3 + w4);
     }
@@ -265,14 +266,14 @@ Shader "Hidden/Kino/Obscurance"
     half4 frag_blur(v2f_img i) : SV_Target
     {
         float2 delta = _MainTex_TexelSize.xy * _BlurVector;
-        return half4(SeparableBlur(_MainTex, i.uv, delta), 0);
+        return SeparableBlur(_MainTex, i.uv, delta);
     }
 
     // Pass 2: combiner for the forward mode
     half4 frag_combine(v2f_img i) : SV_Target
     {
         half4 src = tex2D(_MainTex, i.uv);
-        half mask = tex2D(_ObscuranceTexture, i.uv);
+        half mask = tex2D(_ObscuranceTexture, i.uv).r;
         return half4(CombineObscurance(src.rgb, mask), src.a);
     }
 
@@ -280,8 +281,12 @@ Shader "Hidden/Kino/Obscurance"
     v2f_img vert_gbuffer(appdata_img v)
     {
         v2f_img o;
-        o.pos = v.vertex * float4(2, 2, 1, 1);
+        o.pos = v.vertex * float4(2, 2, 0, 0) + float4(0, 0, 0, 1);
+        #if UNITY_UV_STARTS_AT_TOP
+        o.uv = v.texcoord * float2(1, -1) + float2(0, 1);
+        #else
         o.uv = v.texcoord;
+        #endif
         return o;
     }
 
@@ -293,7 +298,7 @@ Shader "Hidden/Kino/Obscurance"
 
     OcclusionOutput frag_gbuffer_combine(v2f_img i)
     {
-        half ao = tex2D(_ObscuranceTexture, i.uv);
+        half ao = tex2D(_ObscuranceTexture, i.uv).r;
         OcclusionOutput o;
         o.gbuffer0 = half4(0, 0, 0, ao);
         o.gbuffer3 = half4((half3)EncodeAO(ao), 0);
