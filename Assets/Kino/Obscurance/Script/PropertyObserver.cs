@@ -39,7 +39,7 @@ namespace Kino
             int _pixelWidth;
             int _pixelHeight;
 
-            // Check if it has to reset itself for property changes
+            // Check if it has to reset itself for property changes.
             public bool CheckNeedsReset(Obscurance target, Camera camera)
             {
                 return
@@ -50,7 +50,7 @@ namespace Kino
                     _pixelHeight != camera.pixelHeight;
             }
 
-            // Update internal values
+            // Update the internal state.
             public void Update(Obscurance target, Camera camera)
             {
                 _blurIterations = target.blurIterations;

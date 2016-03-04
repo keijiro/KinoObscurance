@@ -33,25 +33,27 @@ namespace Kino
     {
         #region Public Properties
 
-        /// Obscurance intensity
+        /// Degree of darkness produced by the effect.
         public float intensity {
             get { return _intensity; }
             set { _intensity = value; }
         }
 
-        [SerializeField, Range(0, 4)]
+        [SerializeField, Range(0, 4), Tooltip(
+            "Degree of darkness produced by the effect.")]
         float _intensity = 1;
 
-        /// Sampling radius
+        /// Radius of sample points, which affects extent of darkened areas.
         public float radius {
-            get { return Mathf.Max(_radius, 1e-5f); }
+            get { return Mathf.Max(_radius, 1e-4f); }
             set { _radius = value; }
         }
 
-        [SerializeField]
+        [SerializeField, Tooltip(
+            "Radius of sample points, which affects extent of darkened areas.")]
         float _radius = 0.3f;
 
-        /// Sample count options
+        /// Number of sample points, which affects quality and performance.
         public SampleCount sampleCount {
             get { return _sampleCount; }
             set { _sampleCount = value; }
@@ -59,10 +61,12 @@ namespace Kino
 
         public enum SampleCount { Lowest, Low, Medium, High, Variable }
 
-        [SerializeField]
+        [SerializeField, Tooltip(
+            "Number of sample points, which affects quality and performance.")]
         SampleCount _sampleCount = SampleCount.Medium;
 
-        /// Variable sample count value
+        /// Determines the sample count when SampleCount.Variable is used.
+        /// In other cases, it returns the preset value of the current setting.
         public int sampleCountValue {
             get {
                 switch (_sampleCount) {
@@ -71,7 +75,7 @@ namespace Kino
                     case SampleCount.Medium: return 12;
                     case SampleCount.High:   return 20;
                 }
-                return Mathf.Clamp(_sampleCountValue, 1, 120);
+                return Mathf.Clamp(_sampleCountValue, 1, 256);
             }
             set { _sampleCountValue = value; }
         }
@@ -79,43 +83,43 @@ namespace Kino
         [SerializeField]
         int _sampleCountValue = 24;
 
-        /// Determines how many times it applies blur filter
+        /// Number of iterations of blur filter.
         public int blurIterations {
             get { return _blurIterations; }
             set { _blurIterations = value; }
         }
 
-        [SerializeField, Range(0, 4)]
+        [SerializeField, Range(0, 4), Tooltip(
+            "Number of iterations of the blur filter.")]
         int _blurIterations = 2;
 
-        /// Downsampling (half-resolution mode)
+        /// Halves the resolution of the effect to increase performance.
         public bool downsampling {
             get { return _downsampling; }
             set { _downsampling = value; }
         }
 
-        [SerializeField]
+        [SerializeField, Tooltip(
+            "Halves the resolution of the effect to increase performance.")]
         bool _downsampling = false;
 
-        /// Only affects ambient lighting
+        /// Enables the ambient-only mode in that the effect only affects
+        /// ambient lighting. This mode is only available with deferred
+        /// shading and HDR rendering.
         public bool ambientOnly {
             get {
-                // Only enabled with the deferred shading rendering path
-                // and HDR rendering.
                 return _ambientOnly && targetCamera.hdr && IsGBufferAvailable;
             }
             set { _ambientOnly = value; }
         }
 
-        [SerializeField]
+        [SerializeField, Tooltip(
+            "If checked, the effect only affects ambient lighting.")]
         bool _ambientOnly = false;
 
         #endregion
 
         #region Private Properties
-
-        // Quad mesh for blitting (reference to build-in asset)
-        [SerializeField] Mesh _quadMesh;
 
         // AO shader material
         Material aoMaterial {
@@ -161,11 +165,15 @@ namespace Kino
             }
         }
 
+        // Reference to the quad mesh in the built-in assets
+        // (used in MRT blitting)
+        [SerializeField] Mesh _quadMesh;
+
         #endregion
 
-        #region Effect Pass
+        #region Effect Passes
 
-        // Build the AO pass commands (used in the ambient-only mode).
+        // Build commands for the AO pass (used in the ambient-only mode).
         void BuildAOCommands()
         {
             var cb = aoCommands;
@@ -198,7 +206,7 @@ namespace Kino
                     rtBlur, tw, th, 0, FilterMode.Bilinear, format, rwMode
                 );
 
-                // Geometry-aware blur
+                // Blur iterations
                 for (var i = 0; i < blurIterations; i++)
                 {
                     cb.SetGlobalVector("_BlurVector", Vector2.right);
@@ -251,7 +259,7 @@ namespace Kino
                     tw, th, 0, format, rwMode
                 );
 
-                // Geometry-aware blur
+                // Blur iterations
                 for (var i = 0; i < blurIterations; i++)
                 {
                     m.SetVector("_BlurVector", Vector2.right);
@@ -280,10 +288,9 @@ namespace Kino
             m.SetFloat("_Intensity", intensity);
             m.SetFloat("_Contrast", 0.6f);
             m.SetFloat("_Radius", radius);
-            m.SetFloat("_DepthFallOff", 100);
             m.SetFloat("_TargetScale", downsampling ? 0.5f : 1);
 
-            // AO source (CameraDepthNormals or G-buffer)
+            // Use G-buffer if available.
             if (IsGBufferAvailable)
                 m.EnableKeyword("_SOURCE_GBUFFER");
 
@@ -300,12 +307,12 @@ namespace Kino
 
         void OnEnable()
         {
-            // Register the command buffer for the ambient only mode.
+            // Register the command buffer if in the ambient-only mode.
             if (ambientOnly) targetCamera.AddCommandBuffer(
                 CameraEvent.BeforeReflections, aoCommands
             );
 
-            // Requires CameraDepthNormals when G-buffer is not available.
+            // Requires DepthNormals when G-buffer is not available.
             if (!IsGBufferAvailable)
                 targetCamera.depthTextureMode |= DepthTextureMode.DepthNormals;
         }
@@ -314,13 +321,11 @@ namespace Kino
         {
             // Destroy all the temporary resources.
             if (_aoMaterial != null) DestroyImmediate(_aoMaterial);
-
             _aoMaterial = null;
 
             if (_aoCommands != null) targetCamera.RemoveCommandBuffer(
                 CameraEvent.BeforeReflections, _aoCommands
             );
-
             _aoCommands = null;
         }
 
@@ -328,13 +333,14 @@ namespace Kino
         {
             if (propertyObserver.CheckNeedsReset(this, targetCamera))
             {
-                // Reinitialize all the resources. Not efficient but just works.
+                // Reinitialize all the resources by disabling/enabling itself.
+                // This is not very efficient way but just works...
                 OnDisable();
                 OnEnable();
 
+                // Build the command buffer if in the ambient-only mode.
                 if (ambientOnly)
                 {
-                    // Build the command buffer for the ambient only mode.
                     aoCommands.Clear();
                     BuildAOCommands();
                 }
@@ -351,7 +357,7 @@ namespace Kino
         {
             if (ambientOnly)
             {
-                // Do nothing in the ambient only mode.
+                // Do nothing in the ambient-only mode.
                 Graphics.Blit(source, destination);
             }
             else

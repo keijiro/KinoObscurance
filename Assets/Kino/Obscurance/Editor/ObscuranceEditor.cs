@@ -39,9 +39,10 @@ namespace Kino
         SerializedProperty _ambientOnly;
 
         static GUIContent _textValue = new GUIContent("Value");
-        static string _noAmbientOnlyText =
-            "Ambient-Only mode is currently disabled; it needs deferred " +
-            "rendering and HDR rendering.";
+
+        static string _textNoAmbientOnly =
+            "The ambient-only mode is currently disabled; " +
+            "it needs deferred shading and HDR rendering.";
 
         void OnEnable()
         {
@@ -76,7 +77,7 @@ namespace Kino
 
             if (!_ambientOnly.hasMultipleDifferentValues)
                 if (_ambientOnly.boolValue != ((Obscurance)target).ambientOnly)
-                    EditorGUILayout.HelpBox(_noAmbientOnlyText, MessageType.Info);
+                    EditorGUILayout.HelpBox(_textNoAmbientOnly, MessageType.Info);
 
             serializedObject.ApplyModifiedProperties();
         }
