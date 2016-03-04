@@ -30,6 +30,35 @@ Shader "Hidden/Kino/Obscurance"
     }
     CGINCLUDE
 
+    // --------
+    // Additional options for further customization
+    // --------
+
+    // By default, a fixed sampling pattern is used in the AO estimator.
+    // Although this gives preferable results in most cases, a completely
+    // random sampling pattern could give aesthetically good results in some
+    // cases. Comment out the line below to use the random pattern instead of
+    // the fixed one.
+    #define FIX_SAMPLING_PATTERN 1
+
+    // The constant below determines the contrast of occlusion. Altough this
+    // allows intentional over/under occlusion, currently is not exposed to the
+    // editor, because it’s thought to be rarely useful.
+    static const float kContrast = 0.6;
+
+    // The constant below controls the geometry-awareness of the blur filter.
+    // The higher value, the more sensitive it is.
+    static const float kGeometry = 50;
+
+    // The constants below are used in the AO estimator. Beta is mainly used
+    // for suppressing self-shadowing noise, and Epsilon is used to prevent
+    // calculation underflow. See the paper (Morgan 2011 http://goo.gl/2iz3P)
+    // for further details of these constants.
+    static const float kBeta = 0.002;
+    static const float kEpsilon = 1e-4;
+
+    // --------
+
     #include "UnityCG.cginc"
 
     // Source texture type (CameraDepthNormals or G-buffer)
@@ -60,7 +89,6 @@ Shader "Hidden/Kino/Obscurance"
 
     // Material shader properties
     half _Intensity;
-    half _Contrast;
     float _Radius;
     float _TargetScale;
     float2 _BlurVector;
@@ -154,7 +182,7 @@ Shader "Hidden/Kino/Obscurance"
     // Normal vector comparer (for geometry-aware weighting)
     half CompareNormal(half3 d1, half3 d2)
     {
-        return pow((dot(d1, d2) + 1) * 0.5, 80);
+        return pow((dot(d1, d2) + 1) * 0.5, kGeometry);
     }
 
     // Final combiner function
@@ -167,9 +195,14 @@ Shader "Hidden/Kino/Obscurance"
     float3 PickSamplePoint(float2 uv, float index)
     {
         // Uniformaly distributed points on a unit sphere http://goo.gl/X2F1Ho
+    #if FIX_SAMPLING_PATTERN
         float gn = GradientNoise(uv * _TargetScale);
         float u = frac(UVRandom(0, index) + gn) * 2 - 1;
         float theta = (UVRandom(1, index) + gn) * UNITY_PI * 2;
+    #else
+        float u = UVRandom(uv.x + _Time.x, uv.y + index) * 2 - 1;
+        float theta = UVRandom(-uv.x - _Time.x, uv.y + index) * UNITY_PI * 2;
+    #endif
         float3 v = float3(CosSin(theta) * sqrt(1 - u * u), u);
         // Make them distributed between [0, _Radius]
         float l = sqrt((index + 1) / _SampleCount) * _Radius;
@@ -219,15 +252,15 @@ Shader "Hidden/Kino/Obscurance"
             float3 v_s2 = vpos_s2 - vpos_o;
 
             // Estimate the obscurance value
-            float bias = -0.002 * depth_o; // empirical value
-            const float epsilon = 1e-4;    // empirical value
-            ao += max(dot(v_s2, norm_o) + bias, 0) / (dot(v_s2, v_s2) + epsilon);
+            float a1 = max(dot(v_s2, norm_o) - kBeta * depth_o, 0);
+            float a2 = dot(v_s2, v_s2) + kEpsilon;
+            ao += a1 / a2;
         }
 
         ao *= _Radius; // intensity normalization
 
         // Apply other parameters.
-        return pow(ao * _Intensity / _SampleCount, _Contrast);
+        return pow(ao * _Intensity / _SampleCount, kContrast);
     }
 
     // Geometry-aware separable blur filter

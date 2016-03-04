@@ -286,7 +286,6 @@ namespace Kino
             m.shaderKeywords = null;
 
             m.SetFloat("_Intensity", intensity);
-            m.SetFloat("_Contrast", 0.6f);
             m.SetFloat("_Radius", radius);
             m.SetFloat("_TargetScale", downsampling ? 0.5f : 1);
 
