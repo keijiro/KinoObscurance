@@ -130,7 +130,12 @@ Shader "Hidden/Kino/Obscurance"
     // (returns a very large value if it lies out of bounds)
     float CheckBounds(float2 uv, float d)
     {
-        float ob = any(uv < 0) + any(uv > 1) + (d >= 0.99999);
+        float ob = any(uv < 0) + any(uv > 1);
+    #if defined(UNITY_REVERSED_Z)
+        ob += (d <= 0.00001);
+    #else
+        ob += (d >= 0.99999);
+    #endif
         return ob * 1e8;
     }
 
