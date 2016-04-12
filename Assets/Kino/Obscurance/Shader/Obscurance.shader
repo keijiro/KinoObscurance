@@ -265,26 +265,58 @@ Shader "Hidden/Kino/Obscurance"
     // Geometry-aware separable blur filter
     half SeparableBlur(sampler2D tex, float2 uv, float2 delta)
     {
+#if 1
+        // 9-tap Gaussian blur with adaptive sampling
+        float2 uv1a = uv - delta;
+        float2 uv1b = uv + delta;
+        float2 uv2a = uv - delta * 2;
+        float2 uv2b = uv + delta * 2;
+        float2 uv3a = uv - delta * 3.2307692308;
+        float2 uv3b = uv + delta * 3.2307692308;
+
         half3 n0 = SampleNormal(uv);
 
-        half2 uv1 = uv - delta;
-        half2 uv2 = uv + delta;
-        half2 uv3 = uv - delta * 2;
-        half2 uv4 = uv + delta * 2;
+        half w0 = 0.37004405286;
+        half w1a = CompareNormal(n0, SampleNormal(uv1a)) * 0.31718061674;
+        half w1b = CompareNormal(n0, SampleNormal(uv1b)) * 0.31718061674;
+        half w2a = CompareNormal(n0, SampleNormal(uv2a)) * 0.19823788546;
+        half w2b = CompareNormal(n0, SampleNormal(uv2b)) * 0.19823788546;
+        half w3a = CompareNormal(n0, SampleNormal(uv3a)) * 0.11453744493;
+        half w3b = CompareNormal(n0, SampleNormal(uv3b)) * 0.11453744493;
 
-        half w0 = 3;
-        half w1 = CompareNormal(n0, SampleNormal(uv1)) * 2;
-        half w2 = CompareNormal(n0, SampleNormal(uv2)) * 2;
-        half w3 = CompareNormal(n0, SampleNormal(uv3));
-        half w4 = CompareNormal(n0, SampleNormal(uv4));
+        half4 s = tex2D(_MainTex, uv) * w0;
+        s += tex2D(_MainTex, uv1a) * w1a;
+        s += tex2D(_MainTex, uv1b) * w1b;
+        s += tex2D(_MainTex, uv2a) * w2a;
+        s += tex2D(_MainTex, uv2b) * w2b;
+        s += tex2D(_MainTex, uv3a) * w3a;
+        s += tex2D(_MainTex, uv3b) * w3b;
 
-        half s = tex2D(tex, uv).r * w0;
-        s += tex2D(tex, uv1).r * w1;
-        s += tex2D(tex, uv2).r * w2;
-        s += tex2D(tex, uv3).r * w3;
-        s += tex2D(tex, uv4).r * w4;
+        return s / (w0 + w1a + w1b + w2a + w2b + w3a + w3b);
+#else
+        // 9-tap Gaussian blur with linear sampling
+        // (less quality but slightly fast)
+        float2 uv1a = uv - delta * 1.3846153846;
+        float2 uv1b = uv + delta * 1.3846153846;
+        float2 uv2a = uv - delta * 3.2307692308;
+        float2 uv2b = uv + delta * 3.2307692308;
 
-        return s / (w0 + w1 + w2 + w3 + w4);
+        half3 n0 = SampleNormal(uv);
+
+        half w0 = 0.2270270270;
+        half w1a = CompareNormal(n0, SampleNormal(uv1a)) * 0.3162162162;
+        half w1b = CompareNormal(n0, SampleNormal(uv1b)) * 0.3162162162;
+        half w2a = CompareNormal(n0, SampleNormal(uv2a)) * 0.0702702703;
+        half w2b = CompareNormal(n0, SampleNormal(uv2b)) * 0.0702702703;
+
+        half4 s = tex2D(_MainTex, uv) * w0;
+        s += tex2D(_MainTex, uv1a) * w1a;
+        s += tex2D(_MainTex, uv1b) * w1b;
+        s += tex2D(_MainTex, uv2a) * w2a;
+        s += tex2D(_MainTex, uv2b) * w2b;
+
+        return s / (w0 + w1a + w1b + w2a + w2b);
+#endif
     }
 
     // Pass 0: Obscurance estimation
