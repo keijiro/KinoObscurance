@@ -342,8 +342,8 @@ Shader "Hidden/Kino/Obscurance"
 
     struct CombinerOutput
     {
-        half4 gbuffer0 : COLOR0;
-        half4 gbuffer3 : COLOR1;
+        half4 gbuffer0 : SV_Target0;
+        half4 gbuffer3 : SV_Target1;
     };
 
     CombinerOutput frag_gbuffer_combine(v2f_img i)
