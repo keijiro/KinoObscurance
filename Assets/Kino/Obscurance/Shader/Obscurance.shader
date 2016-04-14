@@ -265,7 +265,7 @@ Shader "Hidden/Kino/Obscurance"
     // Geometry-aware separable blur filter
     half SeparableBlur(sampler2D tex, float2 uv, float2 delta)
     {
-#if 1
+    #if !SHADER_API_MOBILE
         // 9-tap Gaussian blur with adaptive sampling
         float2 uv1a = uv - delta;
         float2 uv1b = uv + delta;
@@ -293,7 +293,7 @@ Shader "Hidden/Kino/Obscurance"
         s += tex2D(_MainTex, uv3b).r * w3b;
 
         return s / (w0 + w1a + w1b + w2a + w2b + w3a + w3b);
-#else
+    #else
         // 9-tap Gaussian blur with linear sampling
         // (less quality but slightly fast)
         float2 uv1a = uv - delta * 1.3846153846;
@@ -316,7 +316,7 @@ Shader "Hidden/Kino/Obscurance"
         s += tex2D(_MainTex, uv2b).r * w2b;
 
         return s / (w0 + w1a + w1b + w2a + w2b);
-#endif
+    #endif
     }
 
     // Pass 0: Obscurance estimation
