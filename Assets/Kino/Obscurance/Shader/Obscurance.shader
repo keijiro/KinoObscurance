@@ -284,13 +284,13 @@ Shader "Hidden/Kino/Obscurance"
         half w3a = CompareNormal(n0, SampleNormal(uv3a)) * 0.11453744493;
         half w3b = CompareNormal(n0, SampleNormal(uv3b)) * 0.11453744493;
 
-        half4 s = tex2D(_MainTex, uv) * w0;
-        s += tex2D(_MainTex, uv1a) * w1a;
-        s += tex2D(_MainTex, uv1b) * w1b;
-        s += tex2D(_MainTex, uv2a) * w2a;
-        s += tex2D(_MainTex, uv2b) * w2b;
-        s += tex2D(_MainTex, uv3a) * w3a;
-        s += tex2D(_MainTex, uv3b) * w3b;
+        half s = tex2D(_MainTex, uv).r * w0;
+        s += tex2D(_MainTex, uv1a).r * w1a;
+        s += tex2D(_MainTex, uv1b).r * w1b;
+        s += tex2D(_MainTex, uv2a).r * w2a;
+        s += tex2D(_MainTex, uv2b).r * w2b;
+        s += tex2D(_MainTex, uv3a).r * w3a;
+        s += tex2D(_MainTex, uv3b).r * w3b;
 
         return s / (w0 + w1a + w1b + w2a + w2b + w3a + w3b);
 #else
@@ -309,11 +309,11 @@ Shader "Hidden/Kino/Obscurance"
         half w2a = CompareNormal(n0, SampleNormal(uv2a)) * 0.0702702703;
         half w2b = CompareNormal(n0, SampleNormal(uv2b)) * 0.0702702703;
 
-        half4 s = tex2D(_MainTex, uv) * w0;
-        s += tex2D(_MainTex, uv1a) * w1a;
-        s += tex2D(_MainTex, uv1b) * w1b;
-        s += tex2D(_MainTex, uv2a) * w2a;
-        s += tex2D(_MainTex, uv2b) * w2b;
+        half s = tex2D(_MainTex, uv).r * w0;
+        s += tex2D(_MainTex, uv1a).r * w1a;
+        s += tex2D(_MainTex, uv1b).r * w1b;
+        s += tex2D(_MainTex, uv2a).r * w2a;
+        s += tex2D(_MainTex, uv2b).r * w2b;
 
         return s / (w0 + w1a + w1b + w2a + w2b);
 #endif
