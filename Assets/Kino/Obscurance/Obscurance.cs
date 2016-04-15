@@ -264,9 +264,11 @@ namespace Kino
                 {
                     m.SetVector("_BlurVector", Vector2.right);
                     Graphics.Blit(rtMask, rtBlur, m, 1);
+                    rtMask.DiscardContents();
 
                     m.SetVector("_BlurVector", Vector2.up);
                     Graphics.Blit(rtBlur, rtMask, m, 1);
+                    rtBlur.DiscardContents();
                 }
 
                 RenderTexture.ReleaseTemporary(rtBlur);
