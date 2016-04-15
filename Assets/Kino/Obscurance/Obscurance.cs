@@ -91,7 +91,7 @@ namespace Kino
 
         [SerializeField, Range(0, 4), Tooltip(
             "Number of iterations of the blur filter.")]
-        int _blurIterations = 2;
+        int _blurIterations = 1;
 
         /// Halves the resolution of the effect to increase performance.
         public bool downsampling {
