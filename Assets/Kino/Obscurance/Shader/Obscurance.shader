@@ -340,7 +340,7 @@ Shader "Hidden/Kino/Obscurance"
         return o;
     }
 
-#if !SHADER_API_GLES
+#if !SHADER_API_GLES // excluding the MRT pass under GLES2
 
     struct CombinerOutput
     {
