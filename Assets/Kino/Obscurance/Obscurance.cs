@@ -182,6 +182,7 @@ namespace Kino
             var th = targetCamera.pixelHeight;
             var format = RenderTextureFormat.R8;
             var rwMode = RenderTextureReadWrite.Linear;
+            var filter = FilterMode.Bilinear;
 
             if (downsampling) {
                 tw /= 2;
@@ -191,9 +192,7 @@ namespace Kino
             // AO buffer
             var m = aoMaterial;
             var rtMask = Shader.PropertyToID("_ObscuranceTexture");
-            cb.GetTemporaryRT(
-                rtMask, tw, th, 0, FilterMode.Bilinear, format, rwMode
-            );
+            cb.GetTemporaryRT(rtMask, tw, th, 0, filter, format, rwMode);
 
             // AO estimation
             cb.Blit(null, rtMask, m, 0);
@@ -202,21 +201,20 @@ namespace Kino
             {
                 // Blur buffer
                 var rtBlur = Shader.PropertyToID("_ObscuranceBlurTexture");
-                cb.GetTemporaryRT(
-                    rtBlur, tw, th, 0, FilterMode.Bilinear, format, rwMode
-                );
 
                 // Blur iterations
                 for (var i = 0; i < blurIterations; i++)
                 {
+                    cb.GetTemporaryRT(rtBlur, tw, th, 0, filter, format, rwMode);
                     cb.SetGlobalVector("_BlurVector", Vector2.right);
                     cb.Blit(rtMask, rtBlur, m, 1);
+                    cb.ReleaseTemporaryRT(rtMask);
 
+                    cb.GetTemporaryRT(rtMask, tw, th, 0, filter, format, rwMode);
                     cb.SetGlobalVector("_BlurVector", Vector2.up);
                     cb.Blit(rtBlur, rtMask, m, 1);
+                    cb.ReleaseTemporaryRT(rtBlur);
                 }
-
-                cb.ReleaseTemporaryRT(rtBlur);
             }
 
             // Combine AO to the G-buffer.
