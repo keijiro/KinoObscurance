@@ -262,8 +262,8 @@ Shader "Hidden/Kino/Obscurance"
         return pow(ao * _Intensity / _SampleCount, kContrast);
     }
 
-    // Geometry-aware separable blur filter
-    half SeparableBlur(sampler2D tex, float2 uv, float2 delta)
+    // Geometry-aware separable blur filter (large kernel)
+    half SeparableBlurLarge(sampler2D tex, float2 uv, float2 delta)
     {
     #if !SHADER_API_MOBILE
         // 9-tap Gaussian blur with adaptive sampling
@@ -319,20 +319,46 @@ Shader "Hidden/Kino/Obscurance"
     #endif
     }
 
+    // Geometry-aware separable blur filter (small kernel)
+    half SeparableBlurSmall(sampler2D tex, float2 uv, float2 delta)
+    {
+        float2 uv1 = uv - delta;
+        float2 uv2 = uv + delta;
+
+        half3 n0 = SampleNormal(uv);
+
+        half w0 = 2;
+        half w1 = CompareNormal(n0, SampleNormal(uv1));
+        half w2 = CompareNormal(n0, SampleNormal(uv2));
+
+        half s = tex2D(_MainTex, uv).r * w0;
+        s += tex2D(_MainTex, uv1).r * w1;
+        s += tex2D(_MainTex, uv2).r * w2;
+
+        return s / (w0 + w1 + w2);
+    }
+
     // Pass 0: Obscurance estimation
     half4 frag_ao(v2f_img i) : SV_Target
     {
         return EstimateObscurance(i.uv);
     }
 
-    // Pass1: Geometry-aware separable blur
-    half4 frag_blur(v2f_img i) : SV_Target
+    // Pass 1: Geometry-aware separable blur (1st iteration)
+    half4 frag_blur1(v2f_img i) : SV_Target
     {
         float2 delta = _MainTex_TexelSize.xy * _BlurVector;
-        return SeparableBlur(_MainTex, i.uv, delta);
+        return SeparableBlurLarge(_MainTex, i.uv, delta);
     }
 
-    // Pass 2: Combiner for the forward mode
+    // Pass 2: Geometry-aware separable blur (2nd iteration)
+    half4 frag_blur2(v2f_img i) : SV_Target
+    {
+        float2 delta = _MainTex_TexelSize.xy * _BlurVector;
+        return SeparableBlurSmall(_MainTex, i.uv, delta);
+    }
+
+    // Pass 3: Combiner for the forward mode
     struct v2f_multitex
     {
         float4 pos : SV_POSITION;
@@ -359,7 +385,7 @@ Shader "Hidden/Kino/Obscurance"
         return half4(CombineObscurance(src.rgb, ao), src.a);
     }
 
-    // Pass 3: Combiner for the ambient-only mode
+    // Pass 4: Combiner for the ambient-only mode
     v2f_img vert_gbuffer(appdata_img v)
     {
         v2f_img o;
@@ -419,7 +445,17 @@ Shader "Hidden/Kino/Obscurance"
             CGPROGRAM
             #pragma multi_compile _SOURCE_DEPTHNORMALS _SOURCE_GBUFFER
             #pragma vertex vert_img
-            #pragma fragment frag_blur
+            #pragma fragment frag_blur1
+            #pragma target 3.0
+            ENDCG
+        }
+        Pass
+        {
+            ZTest Always Cull Off ZWrite Off
+            CGPROGRAM
+            #pragma multi_compile _SOURCE_DEPTHNORMALS _SOURCE_GBUFFER
+            #pragma vertex vert_img
+            #pragma fragment frag_blur2
             #pragma target 3.0
             ENDCG
         }
