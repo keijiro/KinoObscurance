@@ -31,7 +31,6 @@ namespace Kino
         struct PropertyObserver
         {
             // Obscurance properties
-            int _blurIterations;
             bool _downsampling;
             bool _ambientOnly;
 
@@ -43,7 +42,6 @@ namespace Kino
             public bool CheckNeedsReset(Obscurance target, Camera camera)
             {
                 return
-                    _blurIterations != target.blurIterations ||
                     _downsampling != target.downsampling ||
                     _ambientOnly != target.ambientOnly ||
                     _pixelWidth != camera.pixelWidth ||
@@ -53,7 +51,6 @@ namespace Kino
             // Update the internal state.
             public void Update(Obscurance target, Camera camera)
             {
-                _blurIterations = target.blurIterations;
                 _downsampling = target.downsampling;
                 _ambientOnly = target.ambientOnly;
                 _pixelWidth = camera.pixelWidth;

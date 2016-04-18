@@ -34,7 +34,6 @@ namespace Kino
         SerializedProperty _radius;
         SerializedProperty _sampleCount;
         SerializedProperty _sampleCountValue;
-        SerializedProperty _blurIterations;
         SerializedProperty _downsampling;
         SerializedProperty _ambientOnly;
 
@@ -50,7 +49,6 @@ namespace Kino
             _radius = serializedObject.FindProperty("_radius");
             _sampleCount = serializedObject.FindProperty("_sampleCount");
             _sampleCountValue = serializedObject.FindProperty("_sampleCountValue");
-            _blurIterations = serializedObject.FindProperty("_blurIterations");
             _downsampling = serializedObject.FindProperty("_downsampling");
             _ambientOnly = serializedObject.FindProperty("_ambientOnly");
         }
@@ -71,7 +69,6 @@ namespace Kino
                 EditorGUI.indentLevel--;
             }
 
-            EditorGUILayout.PropertyField(_blurIterations);
             EditorGUILayout.PropertyField(_downsampling);
             EditorGUILayout.PropertyField(_ambientOnly);
 

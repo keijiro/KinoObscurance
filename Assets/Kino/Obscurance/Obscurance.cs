@@ -83,16 +83,6 @@ namespace Kino
         [SerializeField]
         int _sampleCountValue = 24;
 
-        /// Number of iterations of blur filter.
-        public int blurIterations {
-            get { return _blurIterations; }
-            set { _blurIterations = value; }
-        }
-
-        [SerializeField, Range(0, 4), Tooltip(
-            "Number of iterations of the blur filter.")]
-        int _blurIterations = 1;
-
         /// Halves the resolution of the effect to increase performance.
         public bool downsampling {
             get { return _downsampling; }
