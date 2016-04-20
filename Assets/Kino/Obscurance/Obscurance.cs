@@ -93,12 +93,35 @@ namespace Kino
             "Halves the resolution of the effect to increase performance.")]
         bool _downsampling = false;
 
+        /// Source buffer used for obscurance estimation.
+        public OcclusionSource occlusionSource {
+            get {
+                var isGBuffer = _occlusionSource == OcclusionSource.GBuffer;
+                if (isGBuffer && !IsGBufferAvailable)
+                    // An unavailable source was chosen:
+                    // fallback to DepthNormalsTexture.
+                    return OcclusionSource.DepthNormalsTexture;
+                else
+                    return _occlusionSource;
+            }
+            set { _occlusionSource = value; }
+        }
+
+        public enum OcclusionSource {
+            DepthTexture, DepthNormalsTexture, GBuffer
+        }
+
+        [SerializeField, Tooltip(
+            "Source buffer used for obscurance estimation")]
+        OcclusionSource _occlusionSource = OcclusionSource.GBuffer;
+
         /// Enables the ambient-only mode in that the effect only affects
-        /// ambient lighting. This mode is only available with deferred
-        /// shading and HDR rendering.
+        /// ambient lighting. This mode is only available with G-buffer source
+        /// and HDR rendering.
         public bool ambientOnly {
             get {
-                return _ambientOnly && targetCamera.hdr && IsGBufferAvailable;
+                return _ambientOnly && targetCamera.hdr &&
+                    occlusionSource == OcclusionSource.GBuffer;
             }
             set { _ambientOnly = value; }
         }
@@ -278,9 +301,13 @@ namespace Kino
             m.SetFloat("_Radius", radius);
             m.SetFloat("_TargetScale", downsampling ? 0.5f : 1);
 
-            // Use G-buffer if available.
-            if (IsGBufferAvailable)
+            // Occlusion source
+            if (occlusionSource == OcclusionSource.GBuffer)
                 m.EnableKeyword("_SOURCE_GBUFFER");
+            else if (occlusionSource == OcclusionSource.DepthTexture)
+                m.EnableKeyword("_SOURCE_DEPTH");
+            else
+                m.EnableKeyword("_SOURCE_DEPTHNORMALS");
 
             // Sample count
             if (sampleCount == SampleCount.Lowest)
@@ -300,8 +327,11 @@ namespace Kino
                 CameraEvent.BeforeReflections, aoCommands
             );
 
-            // Requires DepthNormals when G-buffer is not available.
-            if (!IsGBufferAvailable)
+            // Enable depth textures which the occlusion source requires.
+            if (occlusionSource == OcclusionSource.DepthTexture)
+                targetCamera.depthTextureMode |= DepthTextureMode.Depth;
+
+            if (occlusionSource != OcclusionSource.GBuffer)
                 targetCamera.depthTextureMode |= DepthTextureMode.DepthNormals;
         }
 
