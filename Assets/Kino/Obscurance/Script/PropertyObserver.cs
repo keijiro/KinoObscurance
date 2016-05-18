@@ -32,6 +32,7 @@ namespace Kino
         {
             // Obscurance properties
             bool _downsampling;
+            OcclusionSource _occlusionSource;
             bool _ambientOnly;
 
             // Camera properties
@@ -43,6 +44,7 @@ namespace Kino
             {
                 return
                     _downsampling != target.downsampling ||
+                    _occlusionSource != target.occlusionSource ||
                     _ambientOnly != target.ambientOnly ||
                     _pixelWidth != camera.pixelWidth ||
                     _pixelHeight != camera.pixelHeight;
@@ -52,6 +54,7 @@ namespace Kino
             public void Update(Obscurance target, Camera camera)
             {
                 _downsampling = target.downsampling;
+                _occlusionSource = target.occlusionSource;
                 _ambientOnly = target.ambientOnly;
                 _pixelWidth = camera.pixelWidth;
                 _pixelHeight = camera.pixelHeight;

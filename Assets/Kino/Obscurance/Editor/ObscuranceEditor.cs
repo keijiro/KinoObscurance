@@ -35,13 +35,18 @@ namespace Kino
         SerializedProperty _sampleCount;
         SerializedProperty _sampleCountValue;
         SerializedProperty _downsampling;
+        SerializedProperty _occlusionSource;
         SerializedProperty _ambientOnly;
 
         static GUIContent _textValue = new GUIContent("Value");
 
+        static string _textNoGBuffer =
+            "G-buffer is currently unavailable. " +
+            "Change Renderring Path in camera settings to Deferred.";
+
         static string _textNoAmbientOnly =
             "The ambient-only mode is currently disabled; " +
-            "it needs deferred shading and HDR rendering.";
+            "it requires G-buffer source and HDR rendering.";
 
         void OnEnable()
         {
@@ -50,11 +55,14 @@ namespace Kino
             _sampleCount = serializedObject.FindProperty("_sampleCount");
             _sampleCountValue = serializedObject.FindProperty("_sampleCountValue");
             _downsampling = serializedObject.FindProperty("_downsampling");
+            _occlusionSource = serializedObject.FindProperty("_occlusionSource");
             _ambientOnly = serializedObject.FindProperty("_ambientOnly");
         }
 
         public override void OnInspectorGUI()
         {
+            var obscurance = (Obscurance)target;
+
             serializedObject.Update();
 
             EditorGUILayout.PropertyField(_intensity);
@@ -70,11 +78,17 @@ namespace Kino
             }
 
             EditorGUILayout.PropertyField(_downsampling);
+            EditorGUILayout.PropertyField(_occlusionSource);
+
+            if (!_occlusionSource.hasMultipleDifferentValues)
+                if (_occlusionSource.enumValueIndex != (int)obscurance.occlusionSource)
+                    EditorGUILayout.HelpBox(_textNoGBuffer, MessageType.Warning);
+
             EditorGUILayout.PropertyField(_ambientOnly);
 
             if (!_ambientOnly.hasMultipleDifferentValues)
-                if (_ambientOnly.boolValue != ((Obscurance)target).ambientOnly)
-                    EditorGUILayout.HelpBox(_textNoAmbientOnly, MessageType.Info);
+                if (_ambientOnly.boolValue != obscurance.ambientOnly)
+                    EditorGUILayout.HelpBox(_textNoAmbientOnly, MessageType.Warning);
 
             serializedObject.ApplyModifiedProperties();
         }
