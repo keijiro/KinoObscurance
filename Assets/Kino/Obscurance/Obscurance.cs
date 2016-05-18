@@ -206,7 +206,7 @@ namespace Kino
             );
 
             // AO estimation
-            cb.Blit(null, rtMask, m, 0);
+            cb.Blit(null, rtMask, m, 2);
 
             // Blur buffer
             var rtBlur = Shader.PropertyToID("_ObscuranceBlurTexture");
@@ -214,23 +214,23 @@ namespace Kino
             // 1st blur iteration (large kernel)
             cb.GetTemporaryRT(rtBlur, tw, th, 0, filter, format, rwMode);
             cb.SetGlobalVector("_BlurVector", Vector2.right * 2);
-            cb.Blit(rtMask, rtBlur, m, 1);
+            cb.Blit(rtMask, rtBlur, m, 4);
             cb.ReleaseTemporaryRT(rtMask);
 
             cb.GetTemporaryRT(rtMask, tw, th, 0, filter, format, rwMode);
             cb.SetGlobalVector("_BlurVector", Vector2.up * 2 * ts);
-            cb.Blit(rtBlur, rtMask, m, 1);
+            cb.Blit(rtBlur, rtMask, m, 4);
             cb.ReleaseTemporaryRT(rtBlur);
 
             // 2nd blur iteration (small kernel)
             cb.GetTemporaryRT(rtBlur, tw, th, 0, filter, format, rwMode);
             cb.SetGlobalVector("_BlurVector", Vector2.right * ts);
-            cb.Blit(rtMask, rtBlur, m, 2);
+            cb.Blit(rtMask, rtBlur, m, 6);
             cb.ReleaseTemporaryRT(rtMask);
 
             cb.GetTemporaryRT(rtMask, tw, th, 0, filter, format, rwMode);
             cb.SetGlobalVector("_BlurVector", Vector2.up * ts);
-            cb.Blit(rtBlur, rtMask, m, 2);
+            cb.Blit(rtBlur, rtMask, m, 6);
             cb.ReleaseTemporaryRT(rtBlur);
 
             // Combine AO to the G-buffer.
@@ -239,7 +239,7 @@ namespace Kino
                 BuiltinRenderTextureType.CameraTarget   // Ambient
             };
             cb.SetRenderTarget(mrt, BuiltinRenderTextureType.CameraTarget);
-            cb.DrawMesh(_quadMesh, Matrix4x4.identity, m, 0, 4);
+            cb.DrawMesh(_quadMesh, Matrix4x4.identity, m, 0, 8);
 
             cb.ReleaseTemporaryRT(rtMask);
         }
@@ -252,6 +252,7 @@ namespace Kino
             var ts = downsampling ? 2 : 1;
             var format = RenderTextureFormat.R8;
             var rwMode = RenderTextureReadWrite.Linear;
+            var useGBuffer = occlusionSource == OcclusionSource.GBuffer;
 
             // AO buffer
             var m = aoMaterial;
@@ -260,33 +261,33 @@ namespace Kino
             );
 
             // AO estimation
-            Graphics.Blit(null, rtMask, m, 0);
+            Graphics.Blit(null, rtMask, m, (int)occlusionSource);
 
             // 1st blur iteration (large kernel)
             var rtBlur = RenderTexture.GetTemporary(tw, th, 0, format, rwMode);
             m.SetVector("_BlurVector", Vector2.right * 2);
-            Graphics.Blit(rtMask, rtBlur, m, 1);
+            Graphics.Blit(rtMask, rtBlur, m, useGBuffer ? 4 : 3);
             RenderTexture.ReleaseTemporary(rtMask);
 
             rtMask = RenderTexture.GetTemporary(tw, th, 0, format, rwMode);
             m.SetVector("_BlurVector", Vector2.up * 2 * ts);
-            Graphics.Blit(rtBlur, rtMask, m, 1);
+            Graphics.Blit(rtBlur, rtMask, m, useGBuffer ? 4 : 3);
             RenderTexture.ReleaseTemporary(rtBlur);
 
             // 2nd blur iteration (small kernel)
             rtBlur = RenderTexture.GetTemporary(tw, th, 0, format, rwMode);
             m.SetVector("_BlurVector", Vector2.right * ts);
-            Graphics.Blit(rtMask, rtBlur, m, 2);
+            Graphics.Blit(rtMask, rtBlur, m, useGBuffer ? 6 : 5);
             RenderTexture.ReleaseTemporary(rtMask);
 
             rtMask = RenderTexture.GetTemporary(tw, th, 0, format, rwMode);
             m.SetVector("_BlurVector", Vector2.up * ts);
-            Graphics.Blit(rtBlur, rtMask, m, 2);
+            Graphics.Blit(rtBlur, rtMask, m, useGBuffer ? 6 : 5);
             RenderTexture.ReleaseTemporary(rtBlur);
 
             // Combine AO with the source.
             m.SetTexture("_ObscuranceTexture", rtMask);
-            Graphics.Blit(source, destination, m, 3);
+            Graphics.Blit(source, destination, m, 7);
 
             RenderTexture.ReleaseTemporary(rtMask);
         }
@@ -295,25 +296,10 @@ namespace Kino
         void UpdateMaterialProperties()
         {
             var m = aoMaterial;
-            m.shaderKeywords = null;
-
             m.SetFloat("_Intensity", intensity);
             m.SetFloat("_Radius", radius);
             m.SetFloat("_TargetScale", downsampling ? 0.5f : 1);
-
-            // Occlusion source
-            if (occlusionSource == OcclusionSource.GBuffer)
-                m.EnableKeyword("_SOURCE_GBUFFER");
-            else if (occlusionSource == OcclusionSource.DepthTexture)
-                m.EnableKeyword("_SOURCE_DEPTH");
-            else
-                m.EnableKeyword("_SOURCE_DEPTHNORMALS");
-
-            // Sample count
-            if (sampleCount == SampleCount.Lowest)
-                m.EnableKeyword("_SAMPLECOUNT_LOWEST");
-            else
-                m.SetInt("_SampleCount", sampleCountValue);
+            m.SetInt("_SampleCount", sampleCountValue);
         }
 
         #endregion
