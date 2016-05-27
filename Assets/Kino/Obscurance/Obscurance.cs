@@ -134,6 +134,16 @@ namespace Kino
 
         #region Private Properties
 
+        // Texture format used for storing AO
+        RenderTextureFormat aoTextureFormat {
+            get {
+                if (SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.R8))
+                    return RenderTextureFormat.R8;
+                else
+                    return RenderTextureFormat.Default;
+            }
+        }
+
         // AO shader material
         Material aoMaterial {
             get {
@@ -194,7 +204,7 @@ namespace Kino
             var tw = targetCamera.pixelWidth;
             var th = targetCamera.pixelHeight;
             var ts = downsampling ? 2 : 1;
-            var format = RenderTextureFormat.R8;
+            var format = aoTextureFormat;
             var rwMode = RenderTextureReadWrite.Linear;
             var filter = FilterMode.Bilinear;
 
@@ -250,7 +260,7 @@ namespace Kino
             var tw = source.width;
             var th = source.height;
             var ts = downsampling ? 2 : 1;
-            var format = RenderTextureFormat.R8;
+            var format = aoTextureFormat;
             var rwMode = RenderTextureReadWrite.Linear;
             var useGBuffer = occlusionSource == OcclusionSource.GBuffer;
 

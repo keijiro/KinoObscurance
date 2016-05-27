@@ -35,13 +35,20 @@ sampler2D_float _CameraDepthTexture;
 sampler2D _CameraDepthNormalsTexture;
 float4x4 _WorldToCamera;
 
+// Sample count
+// Use a constant on GLES2 (basically it doesn't support dynamic looping).
+#if SHADER_API_GLES
+static const int _SampleCount = 5;
+#else
+int _SampleCount;
+#endif
+
 // Source texture properties
 sampler2D _MainTex;
 float4 _MainTex_TexelSize;
 sampler2D _ObscuranceTexture;
 
 // Material shader properties
-int _SampleCount;
 half _Intensity;
 float _Radius;
 float _TargetScale;
