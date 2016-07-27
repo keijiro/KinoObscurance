@@ -9,6 +9,11 @@
 // the fixed one.
 #define FIX_SAMPLING_PATTERN 1
 
+// The SampleNormal function normalizes samples from G-buffer because
+// they're possibly unnormalized. We can eliminate this if it can be said
+// that there is no bad shader that outputs unnormalized normals.
+#define VALIDATE_NORMALS 0
+
 // The constant below determines the contrast of occlusion. Altough this
 // allows intentional over/under occlusion, currently is not exposed to the
 // editor, because it’s thought to be rarely useful.
@@ -117,7 +122,11 @@ float3 SampleNormal(float2 uv)
 {
 #if SOURCE_GBUFFER
     float3 norm = tex2D(_CameraGBufferTexture2, uv).xyz * 2 - 1;
-    return mul((float3x3)_WorldToCamera, norm);
+    norm = mul((float3x3)_WorldToCamera, norm);
+#if VALIDATE_NORMALS
+    norm = normalize(norm);
+#endif
+    return norm;
 #else
     float4 cdn = tex2D(_CameraDepthNormalsTexture, uv);
     return DecodeViewNormalStereo(cdn) * float3(1, 1, -1);
