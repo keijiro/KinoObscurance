@@ -38,7 +38,7 @@ static const float kEpsilon = 1e-4;
 sampler2D _CameraGBufferTexture2;
 sampler2D_float _CameraDepthTexture;
 sampler2D _CameraDepthNormalsTexture;
-float4x4 _WorldToCamera;
+// float4x4 _WorldToCamera;
 
 // Sample count
 // Use a constant on GLES2 (basically it doesn't support dynamic looping).
@@ -51,6 +51,7 @@ int _SampleCount;
 // Source texture properties
 sampler2D _MainTex;
 float4 _MainTex_TexelSize;
+half4 _MainTex_ST;
 sampler2D _ObscuranceTexture;
 
 // Material shader properties
@@ -186,7 +187,7 @@ float3 PickSamplePoint(float2 uv, float index)
 }
 
 // Obscurance estimator function
-float EstimateObscurance(float2 uv)
+float EstimateObscurance(float2 uv, float2 uv01)
 {
     // Parameters used in coordinate conversion
     float3x3 proj = (float3x3)unity_CameraProjection;
@@ -204,7 +205,7 @@ float EstimateObscurance(float2 uv)
 #endif
 
     // Reconstruct the view-space position.
-    float3 vpos_o = ReconstructViewPos(uv, depth_o, p11_22, p13_31);
+    float3 vpos_o = ReconstructViewPos(uv01, depth_o, p11_22, p13_31);
 
     // Distance-based AO estimator based on Morgan 2011 http://goo.gl/2iz3P
     float ao = 0.0;
@@ -224,13 +225,18 @@ float EstimateObscurance(float2 uv)
 
         // Reproject the sample point
         float3 spos_s1 = mul(proj, vpos_s1);
-        float2 uv_s1 = (spos_s1.xy / vpos_s1.z + 1) * 0.5;
+        float2 uv_s1_01 = (spos_s1.xy / vpos_s1.z + 1) * 0.5;
+#ifdef UNITY_SINGLE_PASS_STEREO
+        float2 uv_s1 = UnityStereoScreenSpaceUVAdjust(uv_s1_01, _MainTex_ST);
+#else
+        float2 uv_s1 = uv_s1_01;
+#endif
 
         // Depth at the sample point
         float depth_s1 = SampleDepth(uv_s1);
 
         // Relative position of the sample point
-        float3 vpos_s2 = ReconstructViewPos(uv_s1, depth_s1, p11_22, p13_31);
+        float3 vpos_s2 = ReconstructViewPos(uv_s1_01, depth_s1, p11_22, p13_31);
         float3 v_s2 = vpos_s2 - vpos_o;
 
         // Estimate the obscurance value
@@ -321,50 +327,62 @@ half SeparableBlurSmall(sampler2D tex, float2 uv, float2 delta)
     return s / (w0 + w1 + w2);
 }
 
-// Pass 0: Obscurance estimation
-half4 frag_ao(v2f_img i) : SV_Target
+// Common vertex shader
+struct v2f
 {
-    return EstimateObscurance(i.uv);
+    float4 pos : SV_POSITION;
+    half2 uv : TEXCOORD0;    // Screen space UV (supports stereo rendering)
+    half2 uv01 : TEXCOORD1;  // Original UV (from 0 to 1)
+    half2 uvAlt : TEXCOORD2; // Alternative UV (supports v-flip case)
+};
+
+v2f vert(appdata_img v)
+{
+    half2 uvAlt = v.texcoord;
+#if UNITY_UV_STARTS_AT_TOP
+    if (_MainTex_TexelSize.y < 0.0) uvAlt.y = 1 - uvAlt.y;
+#endif
+
+    v2f o;
+#ifdef UNITY_SINGLE_PASS_STEREO
+    o.pos = UnityObjectToClipPos(v.vertex);
+    o.uv = UnityStereoScreenSpaceUVAdjust(v.texcoord, _MainTex_ST);
+    o.uvAlt = UnityStereoScreenSpaceUVAdjust(uvAlt, _MainTex_ST);
+#else
+    o.pos = mul(UNITY_MATRIX_MVP, v.vertex);
+    o.uv = v.texcoord;
+    o.uvAlt = uvAlt;
+#endif
+    o.uv01 = v.texcoord;
+
+    return o;
+}
+
+// Pass 0: Obscurance estimation
+half4 frag_ao(v2f i) : SV_Target
+{
+    return EstimateObscurance(i.uv, i.uv01);
 }
 
 // Pass 1: Geometry-aware separable blur (1st iteration)
-half4 frag_blur1(v2f_img i) : SV_Target
+half4 frag_blur1(v2f i) : SV_Target
 {
     float2 delta = _MainTex_TexelSize.xy * _BlurVector;
     return SeparableBlurLarge(_MainTex, i.uv, delta);
 }
 
 // Pass 2: Geometry-aware separable blur (2nd iteration)
-half4 frag_blur2(v2f_img i) : SV_Target
+half4 frag_blur2(v2f i) : SV_Target
 {
     float2 delta = _MainTex_TexelSize.xy * _BlurVector;
     return SeparableBlurSmall(_MainTex, i.uv, delta);
 }
 
 // Pass 3: Combiner for the forward mode
-struct v2f_multitex
+half4 frag_combine(v2f i) : SV_Target
 {
-    float4 pos : SV_POSITION;
-    float2 uv0 : TEXCOORD0;
-    float2 uv1 : TEXCOORD1;
-};
-
-v2f_multitex vert_multitex(appdata_img v)
-{
-    // Handles vertically-flipped case.
-    float vflip = sign(_MainTex_TexelSize.y);
-
-    v2f_multitex o;
-    o.pos = mul(UNITY_MATRIX_MVP, v.vertex);
-    o.uv0 = v.texcoord.xy;
-    o.uv1 = (v.texcoord.xy - 0.5) * float2(1, vflip) + 0.5;
-    return o;
-}
-
-half4 frag_combine(v2f_multitex i) : SV_Target
-{
-    half4 src = tex2D(_MainTex, i.uv0);
-    half ao = tex2D(_ObscuranceTexture, i.uv1).r;
+    half4 src = tex2D(_MainTex, i.uv);
+    half ao = tex2D(_ObscuranceTexture, i.uvAlt).r;
     return half4(CombineObscurance(src.rgb, ao), src.a);
 }
 
