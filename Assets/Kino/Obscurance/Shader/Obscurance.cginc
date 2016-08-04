@@ -38,7 +38,7 @@ static const float kEpsilon = 1e-4;
 sampler2D _CameraGBufferTexture2;
 sampler2D_float _CameraDepthTexture;
 sampler2D _CameraDepthNormalsTexture;
-// float4x4 _WorldToCamera;
+float4x4 _WorldToCamera;
 
 // Sample count
 // Use a constant on GLES2 (basically it doesn't support dynamic looping).
