@@ -271,7 +271,7 @@ namespace Kino
             );
 
             // AO estimation
-            Graphics.Blit(null, rtMask, m, (int)occlusionSource);
+            Graphics.Blit(source, rtMask, m, (int)occlusionSource);
 
             // 1st blur iteration (large kernel)
             var rtBlur = RenderTexture.GetTemporary(tw, th, 0, format, rwMode);
