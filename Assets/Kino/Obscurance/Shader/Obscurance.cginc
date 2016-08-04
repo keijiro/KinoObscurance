@@ -353,7 +353,7 @@ v2f vert(appdata_img v)
     o.uv = v.texcoord;
     o.uvAlt = uvAlt;
 #endif
-    o.uv01 = v.texcoord;
+    o.uv01 = uvAlt;
 
     return o;
 }
@@ -361,7 +361,7 @@ v2f vert(appdata_img v)
 // Pass 0: Obscurance estimation
 half4 frag_ao(v2f i) : SV_Target
 {
-    return EstimateObscurance(i.uv, i.uv01);
+    return EstimateObscurance(i.uvAlt, i.uv01);
 }
 
 // Pass 1: Geometry-aware separable blur (1st iteration)
