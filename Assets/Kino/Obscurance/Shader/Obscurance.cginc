@@ -106,17 +106,31 @@ float CheckBounds(float2 uv, float d)
     return ob * 1e8;
 }
 
+// Check if the camera is perspective; returns 1.0 when orthographic.
+float CheckPerspective(float x)
+{
+    return lerp(x, 1, unity_OrthoParams.w);
+}
+
+// Z buffer depth to linear 0-1 depth
+float LinearizeDepth(float z)
+{
+    float isOrtho = unity_OrthoParams.w;
+    float isPers = 1 - unity_OrthoParams.w;
+    z *= _ZBufferParams.x;
+    return (1 - isOrtho * z) / (isPers * z + _ZBufferParams.y);
+}
+
 // Depth/normal sampling functions
 float SampleDepth(float2 uv)
 {
 #if SOURCE_GBUFFER || SOURCE_DEPTH
-    float d = SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv);
-    return LinearEyeDepth(d) + CheckBounds(uv, d);
+    float d = LinearizeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv));
 #else
     float4 cdn = tex2D(_CameraDepthNormalsTexture, uv);
     float d = DecodeFloatRG(cdn.zw);
-    return d * _ProjectionParams.z + CheckBounds(uv, d);
 #endif
+    return d * _ProjectionParams.z + CheckBounds(uv, d);
 }
 
 float3 SampleNormal(float2 uv)
@@ -153,7 +167,7 @@ float SampleDepthNormal(float2 uv, out float3 normal)
 // p13_31 = (unity_CameraProjection._13, unity_CameraProjection._23)
 float3 ReconstructViewPos(float2 uv, float depth, float2 p11_22, float2 p13_31)
 {
-    return float3((uv * 2 - 1 - p13_31) / p11_22, 1) * depth;
+    return float3((uv * 2 - 1 - p13_31) / p11_22 * CheckPerspective(depth), depth);
 }
 
 // Normal vector comparer (for geometry-aware weighting)
@@ -225,7 +239,7 @@ float EstimateObscurance(float2 uv, float2 uv01)
 
         // Reproject the sample point
         float3 spos_s1 = mul(proj, vpos_s1);
-        float2 uv_s1_01 = (spos_s1.xy / vpos_s1.z + 1) * 0.5;
+        float2 uv_s1_01 = (spos_s1.xy / CheckPerspective(vpos_s1.z) + 1) * 0.5;
 #ifdef UNITY_SINGLE_PASS_STEREO
         float2 uv_s1 = UnityStereoScreenSpaceUVAdjust(uv_s1_01, _MainTex_ST);
 #else
