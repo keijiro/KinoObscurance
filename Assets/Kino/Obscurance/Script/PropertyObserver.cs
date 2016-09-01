@@ -28,7 +28,7 @@ namespace Kino
     public partial class Obscurance : MonoBehaviour
     {
         // Observer class that detects changes on properties
-        struct PropertyObserver
+        class PropertyObserver
         {
             // Obscurance properties
             bool _downsampling;
