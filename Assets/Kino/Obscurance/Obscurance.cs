@@ -214,7 +214,7 @@ namespace Kino
 
             // AO buffer
             var m = aoMaterial;
-            var rtMask = Shader.PropertyToID("_ObscuranceTexture");
+            var rtMask = Shader.PropertyToID("_OcclusionTexture");
             cb.GetTemporaryRT(
                 rtMask, tw / ts, th / ts, 0, filter, format, rwMode
             );
@@ -264,7 +264,7 @@ namespace Kino
             var tw = source.width;
             var th = source.height;
             var ts = downsampling ? 2 : 1;
-            var format = aoTextureFormat;
+            var format = RenderTextureFormat.ARGB32;
             var rwMode = RenderTextureReadWrite.Linear;
             var useGBuffer = occlusionSource == OcclusionSource.GBuffer;
 
@@ -277,32 +277,19 @@ namespace Kino
             // AO estimation
             Graphics.Blit(source, rtMask, m, (int)occlusionSource);
 
-            // 1st blur iteration (large kernel)
+            // Separable blur (horizontal pass)
             var rtBlur = RenderTexture.GetTemporary(tw, th, 0, format, rwMode);
-            m.SetVector("_BlurVector", Vector2.right * 2);
             Graphics.Blit(rtMask, rtBlur, m, useGBuffer ? 4 : 3);
             RenderTexture.ReleaseTemporary(rtMask);
 
+            // Separable blur (vertical pass)
             rtMask = RenderTexture.GetTemporary(tw, th, 0, format, rwMode);
-            m.SetVector("_BlurVector", Vector2.up * 2 * ts);
-            Graphics.Blit(rtBlur, rtMask, m, useGBuffer ? 4 : 3);
+            Graphics.Blit(rtBlur, rtMask, m, 5);
             RenderTexture.ReleaseTemporary(rtBlur);
 
-            // 2nd blur iteration (small kernel)
-            rtBlur = RenderTexture.GetTemporary(tw, th, 0, format, rwMode);
-            m.SetVector("_BlurVector", Vector2.right * ts);
-            Graphics.Blit(rtMask, rtBlur, m, useGBuffer ? 6 : 5);
-            RenderTexture.ReleaseTemporary(rtMask);
-
-            rtMask = RenderTexture.GetTemporary(tw, th, 0, format, rwMode);
-            m.SetVector("_BlurVector", Vector2.up * ts);
-            Graphics.Blit(rtBlur, rtMask, m, useGBuffer ? 6 : 5);
-            RenderTexture.ReleaseTemporary(rtBlur);
-
-            // Combine AO with the source.
-            m.SetTexture("_ObscuranceTexture", rtMask);
-            Graphics.Blit(source, destination, m, 7);
-
+            // Composition
+            m.SetTexture("_OcclusionTexture", rtMask);
+            Graphics.Blit(source, destination, m, 6);
             RenderTexture.ReleaseTemporary(rtMask);
         }
 
