@@ -47,7 +47,7 @@ static const float kContrast = 0.6;
 
 // The constant below controls the geometry-awareness of the bilateral
 // filter. The higher value, the more sensitive it is.
-static const float kGeometryCoeff = 50;
+static const float kGeometryCoeff = 0.8;
 
 // The constants below are used in the AO estimator. Beta is mainly used
 // for suppressing self-shadowing noise, and Epsilon is used to prevent
@@ -165,7 +165,7 @@ float SampleDepthNormal(float2 uv, out float3 normal)
 // Normal vector comparer (for geometry-aware weighting)
 half CompareNormal(half3 d1, half3 d2)
 {
-    return pow((dot(d1, d2) + 1) * 0.5, kGeometryCoeff);
+    return smoothstep(kGeometryCoeff, 1, dot(d1, d2));
 }
 
 // Common vertex shader
