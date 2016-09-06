@@ -62,7 +62,7 @@ half BlurSmall(sampler2D tex, float2 uv, float2 delta)
 // Final composition shader
 half4 frag_composition(v2f i) : SV_Target
 {
-    float2 delta = _MainTex_TexelSize.xy / _TargetScale;
+    float2 delta = _MainTex_TexelSize.xy / _Downsample;
     half ao = BlurSmall(_OcclusionTexture, i.uvAlt, delta);
 
     half4 color = tex2D(_MainTex, i.uv);

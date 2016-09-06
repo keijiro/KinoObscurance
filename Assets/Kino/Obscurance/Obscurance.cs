@@ -299,7 +299,7 @@ namespace Kino
             var m = aoMaterial;
             m.SetFloat("_Intensity", intensity);
             m.SetFloat("_Radius", radius);
-            m.SetFloat("_TargetScale", downsampling ? 0.5f : 1);
+            m.SetFloat("_Downsample", downsampling ? 0.5f : 1);
             m.SetInt("_SampleCount", sampleCountValue);
         }
 

@@ -67,7 +67,7 @@ float3 PickSamplePoint(float2 uv, float index)
 {
     // Uniformaly distributed points on a unit sphere http://goo.gl/X2F1Ho
 #if defined(FIX_SAMPLING_PATTERN)
-    float gn = GradientNoise(uv * _TargetScale);
+    float gn = GradientNoise(uv * _Downsample);
     float u = frac(UVRandom(0, index) + gn) * 2 - 1;
     float theta = (UVRandom(1, index) + gn) * UNITY_PI * 2;
 #else

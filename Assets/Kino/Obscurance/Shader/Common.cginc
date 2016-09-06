@@ -87,7 +87,7 @@ sampler2D _OcclusionTexture;
 // Other parameters
 half _Intensity;
 float _Radius;
-float _TargetScale;
+float _Downsample;
 
 // Accessors for packed AO/normal buffer
 fixed4 PackAONormal(fixed ao, fixed3 n)

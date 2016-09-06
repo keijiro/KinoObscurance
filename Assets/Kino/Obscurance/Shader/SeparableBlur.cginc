@@ -32,9 +32,9 @@ half4 frag_blur(v2f i) : SV_Target
     // the dither pattern.
     float2 delta = float2(_MainTex_TexelSize.x * 2, 0);
 #else
-    // Vertical pass: Apply _TargetScale to match to the dither
+    // Vertical pass: Apply _Downsample to match to the dither
     // pattern in the original occlusion buffer.
-    float2 delta = float2(0, _MainTex_TexelSize.y / _TargetScale * 2);
+    float2 delta = float2(0, _MainTex_TexelSize.y / _Downsample * 2);
 #endif
 
 #if defined(BLUR_HIGH_QUALITY)
