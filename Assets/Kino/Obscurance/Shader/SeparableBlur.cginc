@@ -24,21 +24,22 @@
 
 #include "Common.cginc"
 
-// #define BLUR_HIGH_QUALITY
-
 // Geometry-aware separable bilateral filter
 half4 frag_blur(v2f i) : SV_Target
 {
 #if defined(BLUR_HORIZONTAL)
-    float2 delta = float2(_MainTex_TexelSize.x / _TargetScale, 0);
+    // Horizontal pass: Always use 2 texels interval to match to
+    // the dither pattern.
+    float2 delta = float2(_MainTex_TexelSize.x * 2, 0);
 #else
-    float2 delta = float2(0, _MainTex_TexelSize.y / _TargetScale);
-    delta *= 2;
+    // Vertical pass: Apply _TargetScale to match to the dither
+    // pattern in the original occlusion buffer.
+    float2 delta = float2(0, _MainTex_TexelSize.y / _TargetScale * 2);
 #endif
 
 #if defined(BLUR_HIGH_QUALITY)
 
-    // 9-tap Gaussian with adaptive sampling
+    // High quality 7-tap Gaussian with adaptive sampling
 
     fixed4 p0  = tex2D(_MainTex, i.uv);
     fixed4 p1a = tex2D(_MainTex, i.uv - delta);
@@ -75,8 +76,7 @@ half4 frag_blur(v2f i) : SV_Target
 
 #else
 
-    // 9-tap Gaussian with linear sampling
-    // (less quality but slightly fast)
+    // Fater 5-tap Gaussian with linear sampling
 
     fixed4 p0  = tex2D(_MainTex, i.uv);
     fixed4 p1a = tex2D(_MainTex, i.uv - delta * 1.3846153846);

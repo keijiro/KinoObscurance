@@ -25,14 +25,20 @@
 #include "UnityCG.cginc"
 
 // --------
-// Additional options for further customization
+// Options for further customization
 // --------
 
-// By default, a fixed sampling pattern is used in the AO estimator.
-// Although this gives preferable results in most cases, a completely
-// random sampling pattern could give aesthetically better results in some
-// cases. Comment out the line below to use the random pattern instead of
-// the fixed one.
+// By default, a 5-tap Gaussian with the linear sampling technique is used
+// in the bilateral noise filter. It can be replaced with a 7-tap Gaussian
+// with adaptive sampling by enabling the macro below. Although the
+// differences are not noticeable in most cases, it may provide preferable
+// results with some special usage (e.g. NPR without textureing).
+// #define BLUR_HIGH_QUALITY
+
+// By default, a fixed sampling pattern is used in the AO estimator. Although
+// this gives preferable results in most cases, a completely random sampling
+// pattern could give aesthetically better results. Disable the macro below
+// to use such a random pattern instead of the fixed one.
 #define FIX_SAMPLING_PATTERN
 
 // The SampleNormal function normalizes samples from G-buffer because
