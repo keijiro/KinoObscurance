@@ -70,3 +70,44 @@ half4 frag_composition(v2f i) : SV_Target
 
     return color;
 }
+
+// Final composition shader (ambient-only mode)
+v2f_img vert_composition_gbuffer(appdata_img v)
+{
+    v2f_img o;
+    o.pos = v.vertex * float4(2, 2, 0, 0) + float4(0, 0, 0, 1);
+#if UNITY_UV_STARTS_AT_TOP
+    o.uv = v.texcoord * float2(1, -1) + float2(0, 1);
+#else
+    o.uv = v.texcoord;
+#endif
+    return o;
+}
+
+#if !SHADER_API_GLES // excluding the MRT pass under GLES2
+
+struct CompositionOutput
+{
+    half4 gbuffer0 : SV_Target0;
+    half4 gbuffer3 : SV_Target1;
+};
+
+CompositionOutput frag_composition_gbuffer(v2f_img i)
+{
+    float2 delta = _OcclusionTexture_TexelSize.xy / _Downsample;
+    half ao = BlurSmall(_OcclusionTexture, i.uv, delta);
+
+    CompositionOutput o;
+    o.gbuffer0 = half4(0, 0, 0, ao);
+    o.gbuffer3 = half4((half3)EncodeAO(ao), 0);
+    return o;
+}
+
+#else
+
+fixed4 frag_gbuffer_combine(v2f_img i) : SV_Target0
+{
+    return 0;
+}
+
+#endif

@@ -208,7 +208,7 @@ namespace Kino
             var tw = targetCamera.pixelWidth;
             var th = targetCamera.pixelHeight;
             var ts = downsampling ? 2 : 1;
-            var format = aoTextureFormat;
+            var format = RenderTextureFormat.ARGB32;
             var rwMode = RenderTextureReadWrite.Linear;
             var filter = FilterMode.Bilinear;
 
@@ -223,28 +223,16 @@ namespace Kino
             cb.Blit(null, rtMask, m, 2);
 
             // Blur buffer
-            var rtBlur = Shader.PropertyToID("_ObscuranceBlurTexture");
+            var rtBlur = Shader.PropertyToID("_OcclusionBlurTexture");
 
-            // 1st blur iteration (large kernel)
+            // Separable blur (horizontal pass)
             cb.GetTemporaryRT(rtBlur, tw, th, 0, filter, format, rwMode);
-            cb.SetGlobalVector("_BlurVector", Vector2.right * 2);
             cb.Blit(rtMask, rtBlur, m, 4);
             cb.ReleaseTemporaryRT(rtMask);
 
+            // Separable blur (vertical pass)
             cb.GetTemporaryRT(rtMask, tw, th, 0, filter, format, rwMode);
-            cb.SetGlobalVector("_BlurVector", Vector2.up * 2 * ts);
-            cb.Blit(rtBlur, rtMask, m, 4);
-            cb.ReleaseTemporaryRT(rtBlur);
-
-            // 2nd blur iteration (small kernel)
-            cb.GetTemporaryRT(rtBlur, tw, th, 0, filter, format, rwMode);
-            cb.SetGlobalVector("_BlurVector", Vector2.right * ts);
-            cb.Blit(rtMask, rtBlur, m, 6);
-            cb.ReleaseTemporaryRT(rtMask);
-
-            cb.GetTemporaryRT(rtMask, tw, th, 0, filter, format, rwMode);
-            cb.SetGlobalVector("_BlurVector", Vector2.up * ts);
-            cb.Blit(rtBlur, rtMask, m, 6);
+            cb.Blit(rtBlur, rtMask, m, 5);
             cb.ReleaseTemporaryRT(rtBlur);
 
             // Combine AO to the G-buffer.
@@ -253,7 +241,7 @@ namespace Kino
                 BuiltinRenderTextureType.CameraTarget   // Ambient
             };
             cb.SetRenderTarget(mrt, BuiltinRenderTextureType.CameraTarget);
-            cb.DrawMesh(_quadMesh, Matrix4x4.identity, m, 0, 8);
+            cb.DrawMesh(_quadMesh, Matrix4x4.identity, m, 0, 7);
 
             cb.ReleaseTemporaryRT(rtMask);
         }

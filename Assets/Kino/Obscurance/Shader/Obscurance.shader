@@ -117,5 +117,17 @@ Shader "Hidden/Kino/Obscurance"
             #pragma target 3.0
             ENDCG
         }
+        // 7: Final composition (ambient only mode)
+        Pass
+        {
+            Blend Zero OneMinusSrcColor, Zero OneMinusSrcAlpha
+            ZTest Always Cull Off ZWrite Off
+            CGPROGRAM
+            #include "Composition.cginc"
+            #pragma vertex vert_composition_gbuffer
+            #pragma fragment frag_composition_gbuffer
+            #pragma target 3.0
+            ENDCG
+        }
     }
 }

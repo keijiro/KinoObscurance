@@ -82,7 +82,9 @@ static const int _SampleCount = 3;
 sampler2D _MainTex;
 float4 _MainTex_TexelSize;
 half4 _MainTex_ST;
+
 sampler2D _OcclusionTexture;
+float4 _OcclusionTexture_TexelSize;
 
 // Other parameters
 half _Intensity;
