@@ -59,13 +59,13 @@ namespace Kino
             set { _sampleCount = value; }
         }
 
-        public enum SampleCount { Lowest, Low, Medium, High, Variable }
+        public enum SampleCount { Lowest, Low, Medium, High, Custom }
 
         [SerializeField, Tooltip(
             "Number of sample points, which affects quality and performance.")]
         SampleCount _sampleCount = SampleCount.Medium;
 
-        /// Determines the sample count when SampleCount.Variable is used.
+        /// Determines the sample count when SampleCount.Custom is used.
         /// In other cases, it returns the preset value of the current setting.
         public int sampleCountValue {
             get {

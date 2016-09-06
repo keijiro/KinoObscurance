@@ -75,7 +75,7 @@ namespace Kino
             EditorGUILayout.PropertyField(_sampleCount);
 
             if (_sampleCount.hasMultipleDifferentValues ||
-                _sampleCount.enumValueIndex == (int)Obscurance.SampleCount.Variable)
+                _sampleCount.enumValueIndex == (int)Obscurance.SampleCount.Custom)
             {
                 EditorGUI.indentLevel++;
                 EditorGUILayout.PropertyField(_sampleCountValue, _textValue);
