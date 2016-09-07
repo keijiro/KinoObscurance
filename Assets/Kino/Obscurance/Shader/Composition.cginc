@@ -94,8 +94,10 @@ struct CompositionOutput
 
 CompositionOutput frag_composition_gbuffer(v2f_img i)
 {
-    float2 delta = _OcclusionTexture_TexelSize.xy / _Downsample;
-    half ao = BlurSmall(_OcclusionTexture, i.uv, delta);
+    // Workaround: _MainTex_Texelsize hasn't been set properly
+    // for some reasons. Use _ScreenParams instead.
+    float2 delta = (_ScreenParams.zw - 1) / _Downsample;
+    half ao = BlurSmall(_MainTex, i.uv, delta);
 
     CompositionOutput o;
     o.gbuffer0 = half4(0, 0, 0, ao);

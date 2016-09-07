@@ -240,6 +240,7 @@ namespace Kino
                 BuiltinRenderTextureType.GBuffer0,      // Albedo, Occ
                 BuiltinRenderTextureType.CameraTarget   // Ambient
             };
+            cb.SetGlobalTexture("_MainTex", rtMask);
             cb.SetRenderTarget(mrt, BuiltinRenderTextureType.CameraTarget);
             cb.DrawMesh(_quadMesh, Matrix4x4.identity, m, 0, 7);
 
@@ -316,7 +317,6 @@ namespace Kino
             if (_aoCommands != null) targetCamera.RemoveCommandBuffer(
                 CameraEvent.BeforeReflections, _aoCommands
             );
-            _aoCommands = null;
         }
 
         void OnDestroy()
