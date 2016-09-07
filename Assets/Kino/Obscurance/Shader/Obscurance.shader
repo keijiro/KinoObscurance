@@ -26,7 +26,7 @@ Shader "Hidden/Kino/Obscurance"
     Properties
     {
         _MainTex("", 2D) = ""{}
-        _ObscuranceTexture("", 2D) = ""{}
+        _OcclusionTexture("", 2D) = ""{}
     }
     SubShader
     {

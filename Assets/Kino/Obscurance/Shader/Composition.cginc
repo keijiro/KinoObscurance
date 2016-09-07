@@ -27,7 +27,7 @@
 // Gamma encoding (only needed in gamma lighting mode)
 half EncodeAO(half x)
 {
-    half x_g = 1 - pow(1 - x, 1 / 2.2);
+    half x_g = 1 - max(1.055 * pow(1 - x, 0.416666667) - 0.055, 0);
     // ColorSpaceLuminance.w == 0 (gamma) or 1 (linear)
     return lerp(x_g, x, unity_ColorSpaceLuminance.w);
 }
