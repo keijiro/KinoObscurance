@@ -1,5 +1,5 @@
 //
-// Kino/Obscurance - Screen space ambient obscurance effect
+// Kino/Obscurance - Screen space ambient obscurance image effect
 //
 // Copyright (C) 2016 Keijiro Takahashi
 //
