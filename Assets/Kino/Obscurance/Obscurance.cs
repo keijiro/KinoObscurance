@@ -134,16 +134,6 @@ namespace Kino
 
         #region Private Properties
 
-        // Texture format used for storing AO
-        RenderTextureFormat aoTextureFormat {
-            get {
-                if (SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.R8))
-                    return RenderTextureFormat.R8;
-                else
-                    return RenderTextureFormat.Default;
-            }
-        }
-
         // AO shader material
         Material aoMaterial {
             get {
