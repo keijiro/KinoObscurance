@@ -214,7 +214,7 @@ namespace Kino
 
             // AO buffer
             var m = aoMaterial;
-            var rtMask = Shader.PropertyToID("_OcclusionTexture");
+            var rtMask = Shader.PropertyToID("_OcclusionTexture1");
             cb.GetTemporaryRT(
                 rtMask, tw / ts, th / ts, 0, filter, format, rwMode
             );
@@ -223,7 +223,7 @@ namespace Kino
             cb.Blit(null, rtMask, m, 2);
 
             // Blur buffer
-            var rtBlur = Shader.PropertyToID("_OcclusionBlurTexture");
+            var rtBlur = Shader.PropertyToID("_OcclusionTexture2");
 
             // Separable blur (horizontal pass)
             cb.GetTemporaryRT(rtBlur, tw, th, 0, filter, format, rwMode);
@@ -231,6 +231,7 @@ namespace Kino
             cb.ReleaseTemporaryRT(rtMask);
 
             // Separable blur (vertical pass)
+            rtMask = Shader.PropertyToID("_OcclusionTexture");
             cb.GetTemporaryRT(rtMask, tw, th, 0, filter, format, rwMode);
             cb.Blit(rtBlur, rtMask, m, 5);
             cb.ReleaseTemporaryRT(rtBlur);
@@ -240,7 +241,6 @@ namespace Kino
                 BuiltinRenderTextureType.GBuffer0,      // Albedo, Occ
                 BuiltinRenderTextureType.CameraTarget   // Ambient
             };
-            cb.SetGlobalTexture("_MainTex", rtMask);
             cb.SetRenderTarget(mrt, BuiltinRenderTextureType.CameraTarget);
             cb.DrawMesh(_quadMesh, Matrix4x4.identity, m, 0, 7);
 
@@ -280,6 +280,10 @@ namespace Kino
             m.SetTexture("_OcclusionTexture", rtMask);
             Graphics.Blit(source, destination, m, 6);
             RenderTexture.ReleaseTemporary(rtMask);
+
+            // Explicitly detach the temporary texture.
+            // (This is needed to avoid conflict with CommandBuffer)
+            m.SetTexture("_OcclusionTexture", null);
         }
 
         // Update the common material properties.
