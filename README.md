@@ -1,7 +1,7 @@
 Kino/Obscurance
 ===============
 
-*Obscurance* is a screen-space ambient occlusion/obscurance image effect for
+*Obscurance* is a screen-space ambient obscurance (SSAO) image effect for
 Unity.
 
 ![Screen][Image1]
@@ -13,7 +13,10 @@ repositories][Kino] for further information about the suite.
 System Requirements
 -------------------
 
-Unity 5.2 or later versions.
+- Unity 5.3 or later versions
+
+*Obscurance* runs on most of the platforms supported by Unity. Please [open
+an issue][Issues] if there is any compatibility problem.
 
 License
 -------
@@ -40,3 +43,4 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 [Image1]: http://40.media.tumblr.com/3e0077bb152bb9be6ef1ebe3d7d848cc/tumblr_o3gim5HJNx1qio469o1_400.png
 [Image2]: http://40.media.tumblr.com/8f6737690401409dc250a04060e48fc5/tumblr_o3gim5HJNx1qio469o2_400.png
 [Kino]: https://github.com/search?q=kino+user%3Akeijiro&type=Repositories
+[Issues]: https://github.com/keijiro/KinoObscurance/issues
