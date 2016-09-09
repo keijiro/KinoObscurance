@@ -84,7 +84,7 @@ v2f_img vert_composition_gbuffer(appdata_img v)
     return o;
 }
 
-#if !SHADER_API_GLES // excluding the MRT pass under GLES2
+#if !defined(SHADER_API_GLES) // excluding the MRT pass under GLES2
 
 struct CompositionOutput
 {
@@ -107,7 +107,7 @@ CompositionOutput frag_composition_gbuffer(v2f_img i)
 
 #else
 
-fixed4 frag_gbuffer_combine(v2f_img i) : SV_Target0
+fixed4 frag_composition_gbuffer(v2f_img i) : SV_Target0
 {
     return 0;
 }
