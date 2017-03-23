@@ -120,8 +120,13 @@ namespace Kino
         /// and HDR rendering.
         public bool ambientOnly {
             get {
+            #if UNITY_5_6_OR_NEWER
+                return _ambientOnly && targetCamera.allowHDR &&
+                    occlusionSource == OcclusionSource.GBuffer;
+            #else
                 return _ambientOnly && targetCamera.hdr &&
                     occlusionSource == OcclusionSource.GBuffer;
+            #endif
             }
             set { _ambientOnly = value; }
         }
