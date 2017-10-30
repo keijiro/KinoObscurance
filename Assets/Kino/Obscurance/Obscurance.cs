@@ -26,6 +26,8 @@ using UnityEngine.Rendering;
 
 namespace Kino
 {
+    using System;
+
     [ExecuteInEditMode]
     [RequireComponent(typeof(Camera))]
     [AddComponentMenu("Kino Image Effects/Obscurance")]
@@ -165,6 +167,8 @@ namespace Kino
             }
         }
 
+        private DepthTextureMode appliedMode;
+
         CommandBuffer _aoCommands;
 
         // Target camera
@@ -291,6 +295,34 @@ namespace Kino
             m.SetInt("_SampleCount", sampleCountValue);
         }
 
+        private void UpdateDepthTextureMode()
+        {
+            this.DisableSetDepthTexture();
+
+            // Enable depth textures which the occlusion source requires.
+            switch (occlusionSource)
+            {
+                case OcclusionSource.DepthTexture:
+                    this.appliedMode = DepthTextureMode.Depth;
+                    break;
+                case OcclusionSource.DepthNormalsTexture:
+                    this.appliedMode = DepthTextureMode.DepthNormals;
+                    break;
+                case OcclusionSource.GBuffer:
+                    this.appliedMode = DepthTextureMode.None;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
+            }
+            this.targetCamera.depthTextureMode |= this.appliedMode;
+        }
+
+        private void DisableSetDepthTexture()
+        {
+            // Disable all previously set values
+            this.targetCamera.depthTextureMode &= ~appliedMode;
+        }
+
         #endregion
 
         #region MonoBehaviour Functions
@@ -301,13 +333,7 @@ namespace Kino
             if (ambientOnly) targetCamera.AddCommandBuffer(
                 CameraEvent.BeforeReflections, aoCommands
             );
-
-            // Enable depth textures which the occlusion source requires.
-            if (occlusionSource == OcclusionSource.DepthTexture)
-                targetCamera.depthTextureMode |= DepthTextureMode.Depth;
-
-            if (occlusionSource != OcclusionSource.GBuffer)
-                targetCamera.depthTextureMode |= DepthTextureMode.DepthNormals;
+            this.UpdateDepthTextureMode();
         }
 
         void OnDisable()
@@ -316,6 +342,7 @@ namespace Kino
             if (_aoCommands != null) targetCamera.RemoveCommandBuffer(
                 CameraEvent.BeforeReflections, _aoCommands
             );
+            this.DisableSetDepthTexture();
         }
 
         void OnDestroy()
